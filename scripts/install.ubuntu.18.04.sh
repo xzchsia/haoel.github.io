@@ -220,6 +220,78 @@ install_brook(){
         chmod +x brook.sh && sudo bash brook.sh
 }
 
+# uninstall
+
+uninstall_services() {
+    echo "开始卸载服务..."
+
+    # 停止并移除容器
+    for container in gost ss vpn; do
+        if sudo docker ps -a --format '{{.Names}}' | grep -q $container; then
+            sudo docker stop $container
+            sudo docker rm $container
+            echo -e "${COLOR_SUCC}成功停止并移除容器 $container${COLOR_NONE}"
+        else
+            echo -e "${COLOR_ERROR}容器 $container 未找到${COLOR_NONE}"
+        fi
+    done
+
+    # 卸载 Docker
+    if [ -x "$(command -v docker)" ]; then
+        sudo systemctl stop docker
+        sudo apt-get purge -y docker-ce
+        sudo apt-get autoremove -y --purge docker-ce
+        sudo rm -rf /var/lib/docker
+        sudo rm -rf /etc/docker
+        sudo rm /etc/apparmor.d/docker
+        sudo groupdel docker
+        sudo rm -rf /var/run/docker.sock
+        echo -e "${COLOR_SUCC}Docker 已卸载${COLOR_NONE}"
+    else
+        echo -e "${COLOR_ERROR}Docker 未安装${COLOR_NONE}"
+    fi
+
+    # 卸载 Certbot
+    if [ -x "$(command -v certbot)" ]; then
+        sudo apt-get purge -y certbot
+        sudo apt-get autoremove -y --purge certbot
+        sudo rm -rf /etc/letsencrypt
+        echo -e "${COLOR_SUCC}Certbot 已卸载${COLOR_NONE}"
+    else
+        echo -e "${COLOR_ERROR}Certbot 未安装${COLOR_NONE}"
+    fi
+
+    # 卸载 BBR
+    if lsmod | grep -q bbr; then
+        sudo rmmod tcp_bbr
+        sudo sed -i '/tcp_bbr/d' /etc/modules-load.d/modules.conf
+        sudo sed -i '/net.core.default_qdisc=fq/d' /etc/sysctl.conf
+        sudo sed -i '/net.ipv4.tcp_congestion_control=bbr/d' /etc/sysctl.conf
+        sudo sysctl -p
+        echo -e "${COLOR_SUCC}BBR 已卸载${COLOR_NONE}"
+    else
+        echo -e "${COLOR_ERROR}BBR 未安装${COLOR_NONE}"
+    fi
+
+    # 卸载 Brook
+    if [ -e /usr/local/brook/brook ]; then
+        sudo rm /usr/local/brook/brook
+        echo -e "${COLOR_SUCC}Brook 已卸载${COLOR_NONE}"
+    else
+        echo -e "${COLOR_ERROR}Brook 未安装${COLOR_NONE}"
+    fi
+
+    # 删除 Cron Jobs
+    crontab -l 2>/dev/null | grep -v "/usr/bin/certbot renew --force-renewal" | crontab -
+    crontab -l 2>/dev/null | grep -v "/usr/bin/docker restart gost" | crontab -
+    echo -e "${COLOR_SUCC}Cron Jobs 已删除${COLOR_NONE}"
+
+    echo -e "${COLOR_SUCC}所有操作已完成，即将重启系统...${COLORNONE}" 
+    sudo reboot
+}
+
+# end uninstall
+
 # TODO: install v2ray
 
 init(){
@@ -234,7 +306,7 @@ init(){
 
     while true
     do
-        PS3="Please select a option:"
+        PS3="Please select an option:"
         re='^[0-9]+$'
         select opt in "安装 TCP BBR 拥塞控制算法" \
                     "安装 Docker 服务程序" \
@@ -244,6 +316,7 @@ init(){
                     "安装 VPN/L2TP 服务" \
                     "安装 Brook 代理服务" \
                     "创建证书更新 CronJob" \
+                    "卸载所有服务" \
                     "退出" ; do
 
             if ! [[ $REPLY =~ $re ]] ; then
@@ -257,24 +330,26 @@ init(){
                 break
             elif (( REPLY == 3 )) ; then
                 create_cert
-                #loop=1
                 break
             elif (( REPLY == 4 )) ; then
                 install_gost
                 break
-            elif (( REPLY == 5  )) ; then
+            elif (( REPLY == 5 )); then
                 install_shadowsocks
                 break
-            elif (( REPLY == 6 )) ; then
+            elif (( REPLY == 6 )); then
                 install_vpn
                 break
-            elif (( REPLY == 7 )) ; then
+            elif (( REPLY == 7 )); then
                 install_brook
                 break
-            elif (( REPLY == 8 )) ; then
+            elif (( REPLY == 8 )); then
                 create_cron_job
                 break
-            elif (( REPLY == 9 )) ; then
+            elif (( REPLY == 9 )); then
+                uninstall_services
+                break
+            elif (( REPLY == 0 )); then
                 exit
             else
                 echo -e "${COLOR_ERROR}Invalid option. Try another one.${COLOR_NONE}"
