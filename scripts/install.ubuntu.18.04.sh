@@ -236,6 +236,15 @@ uninstall_services() {
         fi
     done
 
+    # 获取 Gost 容器的域名
+    if sudo docker ps -a --format '{{.Names}}' | grep -q gost; then
+        gost_domain=$(sudo docker inspect gost | grep -oP '(?<=cert=\/etc\/letsencrypt\/live\/)[^/]+')
+        echo -e "${COLOR_SUCC}检测到 Gost 使用的域名: $gost_domain${COLOR_NONE}"
+    else
+        echo -e "${COLOR_ERROR}未检测到 Gost 容器${COLOR_NONE}"
+        gost_domain=""
+    fi
+
     # 卸载 Docker
     if [ -x "$(command -v docker)" ]; then
         sudo systemctl stop docker
@@ -251,12 +260,25 @@ uninstall_services() {
         echo -e "${COLOR_ERROR}Docker 未安装${COLOR_NONE}"
     fi
 
-    # 卸载 Certbot
+    # 卸载 Certbot 并删除证书文件
     if [ -x "$(command -v certbot)" ]; then
+        if [ -n "$gost_domain" ]; then
+            domain=$gost_domain
+        else
+            echo "请输入要删除证书的域名:"
+            read -r domain
+        fi
+        
         sudo apt-get purge -y certbot
         sudo apt-get autoremove -y --purge certbot
-        sudo rm -rf /etc/letsencrypt
-        echo -e "${COLOR_SUCC}Certbot 已卸载${COLOR_NONE}"
+
+        sudo rm -rf /etc/letsencrypt/live/$domain
+        sudo rm -rf /etc/letsencrypt/archive/$domain
+        sudo rm -rf /etc/letsencrypt/renewal/$domain.conf
+        
+        crontab -l 2>/dev/null | grep -v "/usr/bin/certbot renew --force-renewal" | crontab -
+
+        echo -e "${COLOR_SUCC}Certbot 和 SSL 证书已删除${COLOR_NONE}"
     else
         echo -e "${COLOR_ERROR}Certbot 未安装${COLOR_NONE}"
     fi
