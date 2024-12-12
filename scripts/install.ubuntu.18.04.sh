@@ -349,7 +349,7 @@ init(){
             elif (( REPLY == 9 )); then
                 uninstall_services
                 break
-            elif (( REPLY == 0 )); then
+            elif (( REPLY == 10 )); then
                 exit
             else
                 echo -e "${COLOR_ERROR}Invalid option. Try another one.${COLOR_NONE}"
