@@ -262,16 +262,16 @@ uninstall_services() {
     fi
 
     # 卸载 BBR
-    if lsmod | grep -q bbr; then
-        sudo rmmod tcp_bbr
-        sudo sed -i '/tcp_bbr/d' /etc/modules-load.d/modules.conf
-        sudo sed -i '/net.core.default_qdisc=fq/d' /etc/sysctl.conf
-        sudo sed -i '/net.ipv4.tcp_congestion_control=bbr/d' /etc/sysctl.conf
-        sudo sysctl -p
-        echo -e "${COLOR_SUCC}BBR 已卸载${COLOR_NONE}"
-    else
-        echo -e "${COLOR_ERROR}BBR 未安装${COLOR_NONE}"
-    fi
+    # if lsmod | grep -q bbr; then
+    #     sudo rmmod tcp_bbr
+    #     sudo sed -i '/tcp_bbr/d' /etc/modules-load.d/modules.conf
+    #     sudo sed -i '/net.core.default_qdisc=fq/d' /etc/sysctl.conf
+    #     sudo sed -i '/net.ipv4.tcp_congestion_control=bbr/d' /etc/sysctl.conf
+    #     sudo sysctl -p
+    #     echo -e "${COLOR_SUCC}BBR 已卸载${COLOR_NONE}"
+    # else
+    #     echo -e "${COLOR_ERROR}BBR 未安装${COLOR_NONE}"
+    # fi
 
     # 卸载 Brook
     if [ -e /usr/local/brook/brook ]; then
