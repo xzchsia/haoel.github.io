@@ -77,15 +77,28 @@ check_container(){
     fi
 }
 
+# install_certbot() {
+#     echo "开始安装 certbot 命令行工具"
+#     sudo apt-get update -qq
+#     sudo apt-get install -y software-properties-common
+#     sudo add-apt-repository universe
+#     sudo add-apt-repository ppa:certbot/certbot
+#     sudo apt-get update -qq
+#     sudo apt-get install -y certbot
+# }
+
+## 由于 Certbot 的 PPA 已被弃用，我们可以使用官方推荐的安装方法来获取最新版本
 install_certbot() {
     echo "开始安装 certbot 命令行工具"
-    sudo apt-get update -qq
-    sudo apt-get install -y software-properties-common
+    sudo apt update -qq
+    sudo apt install -y software-properties-common
     sudo add-apt-repository universe
-    sudo add-apt-repository ppa:certbot/certbot
-    sudo apt-get update -qq
-    sudo apt-get install -y certbot
+    sudo apt update -qq
+    sudo apt install -y snapd
+    sudo snap install --classic certbot
+    sudo ln -s /snap/bin/certbot /usr/bin/certbot
 }
+
 
 create_cert() {
     if ! [ -x "$(command -v certbot)" ]; then
