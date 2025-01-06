@@ -65,6 +65,19 @@ install_docker() {
     fi
 }
 
+# ## 修复替换提示 解决 apt-key 弃用警告，暂未测试
+# install_docker() {
+#     if ! [ -x "$(command -v docker)" ]; then
+#         echo "开始安装 Docker CE"
+#         curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+#         echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+#         sudo apt-get update -qq
+#         sudo apt-get install -y docker-ce
+#     else
+#         echo "Docker CE 已经安装成功了"
+#     fi
+# }
+
 
 check_container(){
     has_container=$(sudo docker ps --format "{{.Names}}" | grep "$1")
@@ -98,6 +111,16 @@ install_certbot() {
     sudo snap install --classic certbot
     sudo ln -s /snap/bin/certbot /usr/bin/certbot
 }
+
+# ## 系统推荐的新的安装certbot的脚本，但是没有测试，是否会丢弃其他依赖，所有暂时还使用上面的完全版本
+# install_certbot() {
+#     echo "开始安装 certbot 命令行工具"
+#     sudo apt update -qq
+#     sudo apt install -y snapd
+#     sudo snap install --classic certbot
+#     sudo ln -s /snap/bin/certbot /usr/bin/certbot
+# }
+
 
 
 create_cert() {
@@ -146,6 +169,8 @@ install_gost() {
     CERT=${CERT_DIR}/live/${DOMAIN}/fullchain.pem
     KEY=${CERT_DIR}/live/${DOMAIN}/privkey.pem
 
+    ## ginuerzh/gost是V2版本的容器
+    ## gogost/gost是V3版本的容器
     sudo docker run -d --name gost \
         -v ${CERT_DIR}:${CERT_DIR}:ro \
         --net=host ginuerzh/gost \
