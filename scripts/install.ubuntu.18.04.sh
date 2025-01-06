@@ -225,6 +225,15 @@ install_brook(){
 uninstall_services() {
     echo "开始卸载服务..."
 
+    # 获取 Gost 容器的域名
+    if sudo docker ps -a --format '{{.Names}}' | grep -q gost; then
+        gost_domain=$(sudo docker inspect gost | grep -oP '(?<=cert=\/etc\/letsencrypt\/live\/)[^/]+')
+        echo -e "${COLOR_SUCC}检测到 Gost 使用的域名: $gost_domain${COLOR_NONE}"
+    else
+        echo -e "${COLOR_ERROR}未检测到 Gost 容器${COLOR_NONE}"
+        gost_domain=""
+    fi
+
     # 停止并移除容器
     for container in gost ss vpn; do
         if sudo docker ps -a --format '{{.Names}}' | grep -q $container; then
@@ -236,14 +245,6 @@ uninstall_services() {
         fi
     done
 
-    # 获取 Gost 容器的域名
-    if sudo docker ps -a --format '{{.Names}}' | grep -q gost; then
-        gost_domain=$(sudo docker inspect gost | grep -oP '(?<=cert=\/etc\/letsencrypt\/live\/)[^/]+')
-        echo -e "${COLOR_SUCC}检测到 Gost 使用的域名: $gost_domain${COLOR_NONE}"
-    else
-        echo -e "${COLOR_ERROR}未检测到 Gost 容器${COLOR_NONE}"
-        gost_domain=""
-    fi
 
     # 卸载 Docker
     if [ -x "$(command -v docker)" ]; then
