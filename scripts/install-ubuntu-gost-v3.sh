@@ -95,7 +95,7 @@ create_cert() {
 #     CERT=${CERT_DIR}/live/${DOMAIN}/fullchain.pem
 #     KEY=${CERT_DIR}/live/${DOMAIN}/privkey.pem
 
-#     sudo gost -L=https2://${USER}:${PASS}@${BIND_IP}:${PORT}?cert=${CERT}&key=${KEY}&probe_resist=code:400&knock=www.google.com &
+#     sudo gost -L=http2://${USER}:${PASS}@${BIND_IP}:${PORT}?cert=${CERT}&key=${KEY}&probe_resist=code:400&knock=www.google.com &
 # }
 
 install_gost() {
