@@ -100,7 +100,11 @@ create_cert() {
 
 install_gost() {
     echo "开始安装 Gost"
+    # 经过测试，该命令行需要切换到root权限下才能执行，需要继续调整测试。
     sudo bash <(curl -fsSL https://github.com/go-gost/gost/raw/master/install.sh) --install
+    # sudo -i
+    # bash <(curl -fsSL https://github.com/go-gost/gost/raw/master/install.sh) --install
+
 
     echo "准备启动 Gost 代理程序,为了安全,需要使用用户名与密码进行认证."
     read -r -p "请输入你要使用的域名：" DOMAIN
@@ -119,6 +123,7 @@ install_gost() {
     KEY=${CERT_DIR}/live/${DOMAIN}/privkey.pem
 
     configure_gost_service "${USER}" "${PASS}" "${BIND_IP}" "${PORT}" "${CERT}" "${KEY}"
+    echo "${COLOR_SUCC}gost服务已经成功安装！${COLOR_NONE}"
 }
 
 # 为了确保 Gost 服务在崩溃后能够自动重启，可以使用 systemd 来管理 Gost 服务，创建一个守护进程
@@ -137,7 +142,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/gost -L=https2://${USER}:${PASS}@${BIND_IP}:${PORT}?cert=${CERT}&key=${KEY}&probe_resist=code:400&knock=www.google.com
+ExecStart=/usr/local/bin/gost -L=http2://${USER}:${PASS}@${BIND_IP}:${PORT}?cert=${CERT}&key=${KEY}&probe_resist=code:400&knock=www.google.com
 Restart=always
 RestartSec=10
 
@@ -190,10 +195,16 @@ create_cron_job(){
 uninstall_services() {
     echo "开始卸载服务..."
 
-    # 检测并获取 Gost 容器的域名
+    # 检测并获取 Gost 服务的域名
     if pgrep gost > /dev/null; then
-        gost_domain=$(pgrep -a gost | grep -oP '(?<=cert=/etc/letsencrypt/live/)[^/]+')
-        echo -e "${COLOR_SUCC}检测到 Gost 使用的域名: $gost_domain${COLOR_NONE}"
+        gost_command=$(pgrep -a gost | grep -oP '(?<=cert=/etc/letsencrypt/live/)[^ ]+')
+        if [ -n "$gost_command" ]; then
+            gost_domain=$(echo "$gost_command" | awk -F'/' '{print $1}')
+            echo -e "${COLOR_SUCC}检测到 Gost 使用的域名: $gost_domain${COLOR_NONE}"
+        else
+            echo -e "${COLOR_ERROR}未检测到 Gost 服务的域名${COLOR_NONE}"
+            gost_domain=""
+        fi
     else
         echo -e "${COLOR_ERROR}未检测到 Gost 服务${COLOR_NONE}"
         gost_domain=""
