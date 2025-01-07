@@ -81,17 +81,6 @@ create_cert() {
 
 # Function to download and install gost
 download_install_gost_v3_service() {
-    # if [[ "$1" == "--install" ]]; then
-    #     # Install the latest version automatically
-    #     versions=$(curl -s "$base_url" | grep -oP 'tag_name": "\K[^"]+')
-    #     latest_version=$(echo "$versions" | head -n 1)
-    #     echo "Downloading gost version $latest_version..."
-    # else
-    #     echo "Please provide '--install' option to install the latest version."
-    #     exit 1
-    # fi
-
-    # Install the latest version automatically
     versions=$(curl -s "$base_url" | grep -oP 'tag_name": "\K[^"]+')
     latest_version=$(echo "$versions" | head -n 1)
     echo "Downloading gost version $latest_version..."
@@ -151,10 +140,15 @@ download_install_gost_v3_service() {
         echo "Failed to find the download URL for gost version $version." 
         exit 1 
     fi
-    
+
     # Download the binary
-    echo "Downloading gost version $version from $download_url..."
-    sudo curl -fsSL -o gost.tar.gz $download_url
+    echo "Downloading gost $version from $download_url..."
+    sudo curl -fsSL -o gost.tar.gz "$download_url"
+
+    if [[ $? -ne 0 ]]; then
+        echo "Failed to download gost. Please check your network connection and the version number."
+        exit 1
+    fi
 
     # Extract and install the binary
     echo "Installing gost..."
@@ -164,7 +158,6 @@ download_install_gost_v3_service() {
 
     echo "gost installation completed!"
 }
-
 
 # 如果不需要service保活，则使用这个版本即可，否则使用下面的install_gost函数
 # install_gost() {
