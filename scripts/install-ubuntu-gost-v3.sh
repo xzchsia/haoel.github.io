@@ -8,6 +8,10 @@ COLOR_ERROR="\e[38;5;198m"
 COLOR_NONE="\e[0m"
 COLOR_SUCC="\e[92m"
 
+# Set the desired GitHub repository
+repo="go-gost/gost"
+base_url="https://api.github.com/repos/$repo/releases"
+
 update_core(){
     echo -e "${COLOR_ERROR}当前系统内核版本太低 <$VERSION_CURR>,需要更新系统内核.${COLOR_NONE}"
     sudo apt install -y -qq --install-recommends linux-generic-hwe-18.04
@@ -74,6 +78,84 @@ create_cert() {
     sudo certbot certonly --standalone -d "${domain}"
 }
 
+
+# Function to download and install gost
+download_install_gost_v3_service() {
+    if [[ "$1" == "--install" ]]; then
+        # Install the latest version automatically
+        versions=$(curl -s "$base_url" | grep -oP 'tag_name": "\K[^"]+')
+        latest_version=$(echo "$versions" | head -n 1)
+        echo "Downloading gost version $latest_version..."
+    else
+        echo "Please provide '--install' option to install the latest version."
+        exit 1
+    fi
+
+    version=$latest_version
+    # Detect the operating system
+    if [[ "$(uname)" == "Linux" ]]; then
+        os="linux"
+    elif [[ "$(uname)" == "Darwin" ]]; then
+        os="darwin"
+    elif [[ "$(uname)" == "MINGW"* ]]; then
+        os="windows"
+    else
+        echo "Unsupported operating system."
+        exit 1
+    fi
+
+    # Detect the CPU architecture
+    arch=$(uname -m)
+    case $arch in
+    x86_64)
+        cpu_arch="amd64"
+        ;;
+    armv5*)
+        cpu_arch="armv5"
+        ;;
+    armv6*)
+        cpu_arch="armv6"
+        ;;
+    armv7*)
+        cpu_arch="armv7"
+        ;;
+    aarch64)
+        cpu_arch="arm64"
+        ;;
+    i686)
+        cpu_arch="386"
+        ;;
+    mips64*)
+        cpu_arch="mips64"
+        ;;
+    mips*)
+        cpu_arch="mips"
+        ;;
+    mipsel*)
+        cpu_arch="mipsle"
+        ;;
+    *)
+        echo "Unsupported CPU architecture."
+        exit 1
+        ;;
+    esac
+    get_download_url="$base_url/tags/$version"
+    download_url=$(curl -s "$get_download_url" | grep -Eo "\"browser_download_url\": \".*${os}.*${cpu_arch}.*\"" | awk -F'["]' '{print $4}')
+
+    # Download the binary
+    echo "Downloading gost version $version..."
+    sudo curl -fsSL -o gost.tar.gz $download_url
+
+    # Extract and install the binary
+    echo "Installing gost..."
+    sudo tar -xzf gost.tar.gz
+    sudo chmod +x gost
+    sudo mv gost /usr/local/bin/gost
+
+    echo "gost installation completed!"
+}
+
+
 # 如果不需要service保活，则使用这个版本即可，否则使用下面的install_gost函数
 # install_gost() {
 #     echo "开始安装 Gost"
@@ -101,9 +183,13 @@ create_cert() {
 install_gost() {
     echo "开始安装 Gost"
     # 经过测试，该命令行需要切换到root权限下才能执行，需要继续调整测试。
-    sudo bash <(curl -fsSL https://github.com/go-gost/gost/raw/master/install.sh) --install
-    # sudo -i
-    # bash <(curl -fsSL https://github.com/go-gost/gost/raw/master/install.sh) --install
+    # sudo bash <(curl -fsSL https://github.com/go-gost/gost/raw/master/install.sh) --install
+    
+    # 替换成如下的安装执行脚本，需要和https://github.com/go-gost/gost/raw/master/install.sh这个路径进行比较，
+    # 万一后续上游被修改了，可能需要根据最新的修改，调整download_install_gost_v3_service这个函数
+    # echo "Calling the installation script with sudo permissions..."
+    sudo download_install_gost_v3_service --install
+    echo "${COLOR_SUCC}download_install_gost_v3_service已经安装过！${COLOR_NONE}"
 
 
     echo "准备启动 Gost 代理程序,为了安全,需要使用用户名与密码进行认证."
