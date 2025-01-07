@@ -81,15 +81,20 @@ create_cert() {
 
 # Function to download and install gost
 download_install_gost_v3_service() {
-    if [[ "$1" == "--install" ]]; then
-        # Install the latest version automatically
-        versions=$(curl -s "$base_url" | grep -oP 'tag_name": "\K[^"]+')
-        latest_version=$(echo "$versions" | head -n 1)
-        echo "Downloading gost version $latest_version..."
-    else
-        echo "Please provide '--install' option to install the latest version."
-        exit 1
-    fi
+    # if [[ "$1" == "--install" ]]; then
+    #     # Install the latest version automatically
+    #     versions=$(curl -s "$base_url" | grep -oP 'tag_name": "\K[^"]+')
+    #     latest_version=$(echo "$versions" | head -n 1)
+    #     echo "Downloading gost version $latest_version..."
+    # else
+    #     echo "Please provide '--install' option to install the latest version."
+    #     exit 1
+    # fi
+
+    # Install the latest version automatically
+    versions=$(curl -s "$base_url" | grep -oP 'tag_name": "\K[^"]+')
+    latest_version=$(echo "$versions" | head -n 1)
+    echo "Downloading gost version $latest_version..."
 
     version=$latest_version
     # Detect the operating system
@@ -188,7 +193,7 @@ install_gost() {
     # 替换成如下的安装执行脚本，需要和https://github.com/go-gost/gost/raw/master/install.sh这个路径进行比较，
     # 万一后续上游被修改了，可能需要根据最新的修改，调整download_install_gost_v3_service这个函数
     # echo "Calling the installation script with sudo permissions..."
-    sudo download_install_gost_v3_service --install
+    download_install_gost_v3_service #--install
     echo "${COLOR_SUCC}download_install_gost_v3_service已经安装过！${COLOR_NONE}"
 
 
