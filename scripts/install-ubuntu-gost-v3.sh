@@ -147,8 +147,13 @@ download_install_gost_v3_service() {
     get_download_url="$base_url/tags/$version"
     download_url=$(curl -s "$get_download_url" | grep -Eo "\"browser_download_url\": \".*${os}.*${cpu_arch}.*\"" | awk -F'["]' '{print $4}')
 
+    if [[ -z "$download_url" ]]; then 
+        echo "Failed to find the download URL for gost version $version." 
+        exit 1 
+    fi
+    
     # Download the binary
-    echo "Downloading gost version $version..."
+    echo "Downloading gost version $version from $download_url..."
     sudo curl -fsSL -o gost.tar.gz $download_url
 
     # Extract and install the binary
