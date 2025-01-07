@@ -74,6 +74,7 @@ create_cert() {
     sudo certbot certonly --standalone -d "${domain}"
 }
 
+# 如果不需要service保活，则使用这个版本即可，否则使用下面的install_gost函数
 # install_gost() {
 #     echo "开始安装 Gost"
 #     sudo bash <(curl -fsSL https://github.com/go-gost/gost/raw/master/install.sh) --install
@@ -153,7 +154,23 @@ crontab_exists() {
     sudo crontab -l 2>/dev/null | grep "$1" >/dev/null 2>/dev/null
 }
 
+# create_cron_job(){
+#     if ! crontab_exists "certbot renew --force-renewal"; then
+#         (sudo crontab -l 2>/dev/null; echo "0 0 1 * * /usr/bin/certbot renew --force-renewal") | sudo crontab -
+#         echo "${COLOR_SUCC}成功安装证书renew定时作业！${COLOR_NONE}"
+#     else
+#         echo "${COLOR_SUCC}证书renew定时作业已经安装过！${COLOR_NONE}"
+#     fi
+
+#     if ! crontab_exists "pkill -HUP gost"; then
+#         (sudo crontab -l 2>/dev/null; echo "5 0 1 * * pkill -HUP gost") | sudo crontab -
+#         echo "${COLOR_SUCC}成功安装gost更新证书定时作业！${COLOR_NONE}"
+#     else
+#         echo "${COLOR_SUCC}gost更新证书定时作业已经成功安装过！${COLOR_NONE}"
+#     fi
+# }
 create_cron_job(){
+    # 写入前先检查，避免重复任务。
     if ! crontab_exists "certbot renew --force-renewal"; then
         (sudo crontab -l 2>/dev/null; echo "0 0 1 * * /usr/bin/certbot renew --force-renewal") | sudo crontab -
         echo "${COLOR_SUCC}成功安装证书renew定时作业！${COLOR_NONE}"
@@ -161,8 +178,9 @@ create_cron_job(){
         echo "${COLOR_SUCC}证书renew定时作业已经安装过！${COLOR_NONE}"
     fi
 
-    if ! crontab_exists "pkill -HUP gost"; then
-        (sudo crontab -l 2>/dev/null; echo "5 0 1 * * pkill -HUP gost") | sudo crontab -
+    # Cron Job 将每周一凌晨1点定时重启 Gost 系统服务
+    if ! crontab_exists "systemctl restart gost"; then
+        (sudo crontab -l 2>/dev/null; echo "0 1 * * 1 /usr/bin/systemctl restart gost") | sudo crontab -
         echo "${COLOR_SUCC}成功安装gost更新证书定时作业！${COLOR_NONE}"
     else
         echo "${COLOR_SUCC}gost更新证书定时作业已经成功安装过！${COLOR_NONE}"
@@ -217,13 +235,12 @@ uninstall_services() {
 
     # 删除 Cron Jobs
     sudo crontab -l 2>/dev/null | grep -v "/usr/bin/certbot renew --force-renewal" | sudo crontab -
-    sudo crontab -l 2>/dev/null | grep -v "pkill -HUP gost" | sudo crontab -
+    sudo crontab -l 2>/dev/null | grep -v "/usr/bin/systemctl restart gost" | sudo crontab -
     echo -e "${COLOR_SUCC}Cron Jobs 已删除${COLOR_NONE}"
 
     echo -e "${COLOR_SUCC}所有操作已完成，即将重启系统...${COLOR_NONE}" 
     sudo reboot
 }
-
 
 init(){
     VERSION_CURR=$(uname -r | awk -F '-' '{print $1}')
