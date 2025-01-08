@@ -10,7 +10,8 @@ COLOR_SUCC="\e[92m"
 
 # Set the desired GitHub repository
 repo="go-gost/gost"
-base_url="https://api.github.com/repos/$repo/releases"
+# 使用最新的正式发布版本
+base_url="https://api.github.com/repos/$repo/releases/latest"
 
 update_core(){
     echo -e "${COLOR_ERROR}当前系统内核版本太低 <$VERSION_CURR>,需要更新系统内核.${COLOR_NONE}"
@@ -150,38 +151,21 @@ download_install_gost_v3_service() {
         exit 1
     fi
 
+    # Create a directory for extraction
+    sudo mkdir -p gost_file
+
     # Extract and install the binary
     echo "Installing gost..."
-    sudo tar -xzf gost.tar.gz
-    sudo chmod +x gost
-    sudo mv gost /usr/local/bin/gost
+    sudo tar -xzf gost.tar.gz -C gost_file
+    sudo chmod +x gost_file/gost
+    sudo mv gost_file/gost /usr/local/bin/gost
+
+    # Clean up
+    sudo rm -rf gost_file
+    sudo rm -f gost.tar.gz
 
     echo "gost installation completed!"
 }
-
-# 如果不需要service保活，则使用这个版本即可，否则使用下面的install_gost函数
-# install_gost() {
-#     echo "开始安装 Gost"
-#     sudo bash <(curl -fsSL https://github.com/go-gost/gost/raw/master/install.sh) --install
-
-#     echo "准备启动 Gost 代理程序,为了安全,需要使用用户名与密码进行认证."
-#     read -r -p "请输入你要使用的域名：" DOMAIN
-#     read -r -p "请输入你要使用的用户名:" USER
-#     read -r -p "请输入你要使用的密码:" PASS
-#     read -r -p "请输入HTTP/2需要侦听的端口号(443)：" PORT
-
-#     if [[ -z "${PORT// }" ]] || ! [[ "${PORT}" =~ ^[0-9]+$ ]] || ! { [ "$PORT" -ge 1 ] && [ "$PORT" -le 65535 ]; }; then
-#         echo -e "${COLOR_ERROR}非法端口,使用默认端口 443 !${COLOR_NONE}"
-#         PORT=443
-#     fi
-
-#     BIND_IP=0.0.0.0
-#     CERT_DIR=/etc/letsencrypt
-#     CERT=${CERT_DIR}/live/${DOMAIN}/fullchain.pem
-#     KEY=${CERT_DIR}/live/${DOMAIN}/privkey.pem
-
-#     sudo gost -L=http2://${USER}:${PASS}@${BIND_IP}:${PORT}?cert=${CERT}&key=${KEY}&probe_resist=code:400&knock=www.google.com &
-# }
 
 install_gost() {
     echo "开始安装 Gost"
@@ -192,7 +176,7 @@ install_gost() {
     # 万一后续上游被修改了，可能需要根据最新的修改，调整download_install_gost_v3_service这个函数
     # echo "Calling the installation script with sudo permissions..."
     download_install_gost_v3_service #--install
-    echo "${COLOR_SUCC}download_install_gost_v3_service已经安装过！${COLOR_NONE}"
+    echo "${COLOR_SUCC}download_install_gost_v3_service已经成功安装！${COLOR_NONE}"
 
 
     echo "准备启动 Gost 代理程序,为了安全,需要使用用户名与密码进行认证."
@@ -248,21 +232,6 @@ crontab_exists() {
     sudo crontab -l 2>/dev/null | grep "$1" >/dev/null 2>/dev/null
 }
 
-# create_cron_job(){
-#     if ! crontab_exists "certbot renew --force-renewal"; then
-#         (sudo crontab -l 2>/dev/null; echo "0 0 1 * * /usr/bin/certbot renew --force-renewal") | sudo crontab -
-#         echo "${COLOR_SUCC}成功安装证书renew定时作业！${COLOR_NONE}"
-#     else
-#         echo "${COLOR_SUCC}证书renew定时作业已经安装过！${COLOR_NONE}"
-#     fi
-
-#     if ! crontab_exists "pkill -HUP gost"; then
-#         (sudo crontab -l 2>/dev/null; echo "5 0 1 * * pkill -HUP gost") | sudo crontab -
-#         echo "${COLOR_SUCC}成功安装gost更新证书定时作业！${COLOR_NONE}"
-#     else
-#         echo "${COLOR_SUCC}gost更新证书定时作业已经成功安装过！${COLOR_NONE}"
-#     fi
-# }
 create_cron_job(){
     # 写入前先检查，避免重复任务。
     if ! crontab_exists "certbot renew --force-renewal"; then
