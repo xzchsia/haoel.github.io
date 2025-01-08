@@ -1,16 +1,14 @@
 #!/bin/bash
 
-# Author
-
+# Author  https://github.com/go-gost/gost
 # Ubuntu 系统环境 安装 Gost HTTP/2 的V3版本 代理服务脚本
 
 COLOR_ERROR="\e[38;5;198m"
 COLOR_NONE="\e[0m"
 COLOR_SUCC="\e[92m"
 
-# Set the desired GitHub repository
+# Set the desired GitHub repository,使用最新的gost正式发布版本
 repo="go-gost/gost"
-# 使用最新的正式发布版本
 base_url="https://api.github.com/repos/$repo/releases/latest"
 
 update_core(){
@@ -79,7 +77,6 @@ create_cert() {
     sudo certbot certonly --standalone -d "${domain}"
 }
 
-
 # Function to download and install gost
 download_install_gost_v3_service() {
     versions=$(curl -s "$base_url" | grep -oP 'tag_name": "\K[^"]+')
@@ -95,7 +92,7 @@ download_install_gost_v3_service() {
     elif [[ "$(uname)" == "MINGW"* ]]; then
         os="windows"
     else
-        echo "Unsupported operating system."
+        echo "${COLOR_ERROR}Unsupported operating system.${COLOR_NONE}"
         exit 1
     fi
 
@@ -130,7 +127,7 @@ download_install_gost_v3_service() {
         cpu_arch="mipsle"
         ;;
     *)
-        echo "Unsupported CPU architecture."
+        echo -e "${COLOR_ERROR}Unsupported CPU architecture.${COLOR_NONE}"
         exit 1
         ;;
     esac
@@ -140,7 +137,7 @@ download_install_gost_v3_service() {
     download_url=$(curl -s "$base_url" | grep -Eo "\"browser_download_url\": \".*${os}.*${cpu_arch}.*\"" | head -n 1 | awk -F'["]' '{print $4}')
 
     if [[ -z "$download_url" ]]; then 
-        echo "Failed to find the download URL for gost version $version." 
+        echo -e "${COLOR_ERROR}Failed to find the download URL for gost version $version.${COLOR_NONE}"
         exit 1 
     fi
 
@@ -153,11 +150,9 @@ download_install_gost_v3_service() {
         exit 1
     fi
 
-    # Create a directory for extraction
+    echo -e "${COLOR_SUCC}Installing gost...${COLOR_NONE}"
+    # Create a directory for extraction,Extract and install the binary
     sudo mkdir -p gost_file
-
-    # Extract and install the binary
-    echo "Installing gost..."
     sudo tar -xzf gost.tar.gz -C gost_file
     sudo chmod +x gost_file/gost
     sudo mv gost_file/gost /usr/local/bin/gost
@@ -166,20 +161,16 @@ download_install_gost_v3_service() {
     sudo rm -rf gost_file
     sudo rm -f gost.tar.gz
 
-    echo "gost installation completed!"
+    echo -e "${COLOR_SUCC}Gost installation completed!${COLOR_NONE}"
 }
 
 install_gost() {
-    echo "开始安装 Gost"
     # 经过测试，该命令行需要切换到root权限下才能执行，需要继续调整测试。
     # sudo bash <(curl -fsSL https://github.com/go-gost/gost/raw/master/install.sh) --install
-    
     # 替换成如下的安装执行脚本，需要和https://github.com/go-gost/gost/raw/master/install.sh这个路径进行比较，
     # 万一后续上游被修改了，可能需要根据最新的修改，调整download_install_gost_v3_service这个函数
-    # echo "Calling the installation script with sudo permissions..."
+    echo "开始安装 Gost"
     download_install_gost_v3_service #--install
-    echo "${COLOR_SUCC}download_install_gost_v3_service已经成功安装！${COLOR_NONE}"
-
 
     echo "准备启动 Gost 代理程序,为了安全,需要使用用户名与密码进行认证."
     read -r -p "请输入你要使用的域名：" DOMAIN
