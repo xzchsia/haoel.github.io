@@ -304,6 +304,42 @@ uninstall_services() {
     sudo reboot
 }
 
+# 函数：检查并启用UFW防火墙，放行指定端口并防止端口被占用
+setup_ports_allows() {
+    local ports=(80 22 443 8443)
+
+    # 检查是否安装ufw，如果没有安装，则安装
+    if ! command -v ufw &> /dev/null; then
+        echo -e "${COLOR_ERROR}检测到未安装 ufw，开始安装...${COLOR_NONE}"
+        sudo apt update
+        sudo apt install -y ufw
+    fi
+
+    echo -e "${COLOR_SUCC}检查并启用 UFW 防火墙${COLOR_NONE}"
+    sudo ufw status || sudo ufw enable
+
+    echo -e "${COLOR_SUCC}放行以下端口: ${ports[@]}${COLOR_NONE}"
+
+    for port in "${ports[@]}"; do
+        sudo ufw allow ${port}/tcp
+    done
+
+    echo -e "${COLOR_SUCC}重新加载 UFW 规则${COLOR_NONE}"
+    sudo ufw reload
+
+    echo -e "${COLOR_SUCC}查看现有 UFW 规则${COLOR_NONE}"
+    sudo ufw status verbose
+
+    echo -e "${COLOR_SUCC}检查端口是否被占用${COLOR_NONE}"
+    for port in "${ports[@]}"; do
+        if sudo lsof -i TCP:${port}; then
+            echo -e "${COLOR_ERROR}注意：端口 ${port} 已被占用!${COLOR_NONE}"
+        else
+            echo -e "${COLOR_SUCC}端口 ${port} 可用${COLOR_NONE}"
+        fi
+    done
+}
+
 init(){
     VERSION_CURR=$(uname -r | awk -F '-' '{print $1}')
     VERSION_MIN="4.9.0"
@@ -319,6 +355,7 @@ init(){
         PS3="Please select an option:"
         re='^[0-9]+$'
         select opt in "安装 TCP BBR 拥塞控制算法" \
+                    "配置安装必须的端口放行(443等)" \
                     "创建 SSL 证书" \
                     "安装 Gost HTTP/2 代理服务" \
                     "创建证书更新 CronJob" \
@@ -326,24 +363,27 @@ init(){
                     "退出" ; do
 
             if ! [[ $REPLY =~ $re ]] ; then
-                echo -e "${COLOR_ERROR}Invalid option. Please input a number.${COLOR_NONE}"
+                echo -e "${COLOR_ERROR}Invalid option. Please input a number between 0 and 6.${COLOR_NONE}"
                 break;
             elif (( REPLY == 1 )) ; then
                 install_bbr
-                break;
+                break
             elif (( REPLY == 2 )) ; then
-                create_cert
+                setup_ports_allows
                 break
             elif (( REPLY == 3 )) ; then
-                install_gost
+                create_cert
                 break
             elif (( REPLY == 4 )); then
-                create_cron_job
+                install_gost
                 break
             elif (( REPLY == 5 )); then
-                uninstall_services
+                create_cron_job
                 break
             elif (( REPLY == 6 )); then
+                uninstall_services
+                break
+            elif (( REPLY == 0 )); then
                 exit
             else
                 echo -e "${COLOR_ERROR}Invalid option. Try another one.${COLOR_NONE}"
@@ -354,5 +394,6 @@ init(){
     echo "${opt}"
     IFS=$OIFS  # Restore the IFS
 }
+
 
 init
