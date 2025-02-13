@@ -50,6 +50,13 @@ install_bbr() {
     fi
 }
 
+## 使用apt安装方法来获取最新版本
+# install_certbot() {
+#     echo "开始安装 certbot 命令行工具"
+#     sudo apt update -qq
+#     sudo apt-get install -y certbot
+# }
+
 install_certbot() {
     echo "开始安装 certbot 命令行工具"
     sudo apt update -qq

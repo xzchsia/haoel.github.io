@@ -101,6 +101,13 @@ check_container(){
 #     sudo apt-get install -y certbot
 # }
 
+## 由于 Certbot 的 PPA 已被弃用，我们可以使用apt安装方法来获取最新版本
+# install_certbot() {
+#     echo "开始安装 certbot 命令行工具"
+#     sudo apt update -qq
+#     sudo apt-get install -y certbot
+# }
+
 ## 由于 Certbot 的 PPA 已被弃用，我们可以使用官方推荐的安装方法来获取最新版本
 install_certbot() {
     echo "开始安装 certbot 命令行工具"
