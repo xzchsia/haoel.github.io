@@ -10,6 +10,8 @@ COLOR_ERROR="\e[38;5;198m"
 COLOR_NONE="\e[0m"
 COLOR_SUCC="\e[92m"
 
+DOCKER_NAME="gost"
+
 update_core(){
     echo -e "${COLOR_ERROR}当前系统内核版本太低 <$VERSION_CURR>,需要更新系统内核.${COLOR_NONE}"
     sudo apt install -y -qq --install-recommends linux-generic-hwe-18.04
@@ -51,16 +53,49 @@ install_bbr() {
     fi
 }
 
+# install_docker() {
+#     if ! [ -x "$(command -v docker)" ]; then
+#         echo "开始安装 Docker CE"
+#         curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+#         sudo add-apt-repository \
+#             "deb [arch=amd64] https://download.docker.com/linux/ubuntu \
+#             $(lsb_release -cs) \
+#             stable"
+#         sudo apt-get update -qq
+#         sudo apt-get install -y docker-ce
+#     else
+#         echo -e "${COLOR_SUCC}Docker CE 已经安装成功了${COLOR_NONE}"
+#     fi
+# }
+
 install_docker() {
-    if ! [ -x "$(command -v docker)" ]; then
+    # 检查 Docker 是否已安装
+    if ! command -v docker &> /dev/null; then
         echo "开始安装 Docker CE"
-        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
-        sudo add-apt-repository \
-            "deb [arch=amd64] https://download.docker.com/linux/ubuntu \
-            $(lsb_release -cs) \
-            stable"
+
+        # 安装必要的依赖包
         sudo apt-get update -qq
-        sudo apt-get install -y docker-ce
+        sudo apt-get install -y \
+            apt-transport-https \
+            ca-certificates \
+            curl \
+            software-properties-common
+
+        # 添加 Docker 官方 GPG 密钥
+        sudo mkdir -p /etc/apt/keyrings
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+
+        # 设置 Docker 源（仅支持 Ubuntu 20.04 及以上）
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | \
+        sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+        # 安装 Docker CE
+        sudo apt-get update -qq
+        sudo apt-get install -y docker-ce docker-ce-cli containerd.io
+
+        # 将当前用户添加到 docker 用户组
+        sudo usermod -aG docker $USER
+        echo -e "${COLOR_SUCC}Docker CE 安装成功，请重新登录以应用用户组更改。${COLOR_NONE}"
     else
         echo -e "${COLOR_SUCC}Docker CE 已经安装成功了${COLOR_NONE}"
     fi
@@ -101,24 +136,25 @@ check_container(){
 #     sudo apt-get install -y certbot
 # }
 
-## 由于 Certbot 的 PPA 已被弃用，我们可以使用apt安装方法来获取最新版本
-# install_certbot() {
-#     echo "开始安装 certbot 命令行工具"
-#     sudo apt update -qq
-#     sudo apt-get install -y certbot
-# }
-
-## 由于 Certbot 的 PPA 已被弃用，我们可以使用官方推荐的安装方法来获取最新版本
+# 由于 Certbot 的 PPA 已被弃用，我们可以使用apt安装方法来获取最新版本
 install_certbot() {
     echo "开始安装 certbot 命令行工具"
     sudo apt update -qq
-    sudo apt install -y software-properties-common
-    sudo add-apt-repository universe
-    sudo apt update -qq
-    sudo apt install -y snapd
-    sudo snap install --classic certbot
-    sudo ln -s /snap/bin/certbot /usr/bin/certbot
+    sudo apt-get install -y software-properties-common
+    sudo apt-get install -y certbot
 }
+
+## 由于 Certbot 的 PPA 已被弃用，我们可以使用官方推荐的安装方法来获取最新版本
+# install_certbot() {
+#     echo "开始安装 certbot 命令行工具"
+#     sudo apt update -qq
+#     sudo apt install -y software-properties-common
+#     sudo add-apt-repository universe
+#     sudo apt update -qq
+#     sudo apt install -y snapd
+#     sudo snap install --classic certbot
+#     sudo ln -s /snap/bin/certbot /usr/bin/certbot
+# }
 
 # ## 系统推荐的新的安装certbot的脚本，但是没有测试，是否会丢弃其他依赖，所有暂时还使用上面的完全版本
 # install_certbot() {
@@ -128,8 +164,6 @@ install_certbot() {
 #     sudo snap install --classic certbot
 #     sudo ln -s /snap/bin/certbot /usr/bin/certbot
 # }
-
-
 
 create_cert() {
     if ! [ -x "$(command -v certbot)" ]; then
@@ -177,6 +211,7 @@ install_gost() {
     CERT=${CERT_DIR}/live/${DOMAIN}/fullchain.pem
     KEY=${CERT_DIR}/live/${DOMAIN}/privkey.pem
 
+    ## 此处的--name gost是自定义的容器实例名称
     ## ginuerzh/gost是V2版本的容器
     ## gogost/gost是V3版本的容器
     sudo docker run -d --name gost \
@@ -189,20 +224,50 @@ crontab_exists() {
     crontab -l 2>/dev/null | grep "$1" >/dev/null 2>/dev/null
 }
 
-create_cron_job(){
-    # 写入前先检查，避免重复任务。
-    if ! crontab_exists "certbot renew --force-renewal"; then
-        echo "0 0 1 * * /usr/bin/certbot renew --force-renewal" >> /var/spool/cron/crontabs/root
-        echo "${COLOR_SUCC}成功安装证书renew定时作业！${COLOR_NONE}"
+# create_cron_job(){
+#     # 写入前先检查，避免重复任务。
+#     if ! crontab_exists "certbot renew --force-renewal"; then
+#         echo "0 0 1 * * /usr/bin/certbot renew --force-renewal" >> /var/spool/cron/crontabs/root
+#         echo "${COLOR_SUCC}成功安装证书renew定时作业！${COLOR_NONE}"
+#     else
+#         echo "${COLOR_SUCC}证书renew定时作业已经安装过！${COLOR_NONE}"
+#     fi
+
+#     if ! crontab_exists "docker restart gost"; then
+#         echo "5 0 1 * * /usr/bin/docker restart gost" >> /var/spool/cron/crontabs/root
+#         echo "${COLOR_SUCC}成功安装gost更新证书定时作业！${COLOR_NONE}"
+#     else
+#         echo "${COLOR_SUCC}gost更新证书定时作业已经成功安装过！${COLOR_NONE}"
+#     fi
+# }
+
+create_cron_job() {
+    # # 定义颜色变量
+    # COLOR_SUCC='\033[0;32m'
+    # COLOR_NONE='\033[0m'
+
+    # 检查定时任务是否已经存在
+    crontab_exists() {
+        local task="$1"
+        crontab -l 2>/dev/null | grep -Fxq "$task"
+    }
+
+    # 添加 certbot 定时任务
+    CERTBOT_TASK="0 0 1 * * /usr/bin/certbot renew --force-renewal"
+    if ! crontab_exists "$CERTBOT_TASK"; then
+        (crontab -l 2>/dev/null; echo "$CERTBOT_TASK") | crontab -
+        echo -e "${COLOR_SUCC}成功安装证书renew定时作业！${COLOR_NONE}"
     else
-        echo "${COLOR_SUCC}证书renew定时作业已经安装过！${COLOR_NONE}"
+        echo -e "${COLOR_SUCC}证书renew定时作业已经安装过！${COLOR_NONE}"
     fi
 
-    if ! crontab_exists "docker restart gost"; then
-        echo "5 0 1 * * /usr/bin/docker restart gost" >> /var/spool/cron/crontabs/root
-        echo "${COLOR_SUCC}成功安装gost更新证书定时作业！${COLOR_NONE}"
+    # 添加 docker restart gost 定时任务
+    GOST_TASK="5 0 1 * * /usr/bin/docker restart gost"
+    if ! crontab_exists "$GOST_TASK"; then
+        (crontab -l 2>/dev/null; echo "$GOST_TASK") | crontab -
+        echo -e "${COLOR_SUCC}成功安装gost更新证书定时作业！${COLOR_NONE}"
     else
-        echo "${COLOR_SUCC}gost更新证书定时作业已经成功安装过！${COLOR_NONE}"
+        echo -e "${COLOR_SUCC}gost更新证书定时作业已经安装过！${COLOR_NONE}"
     fi
 }
 
