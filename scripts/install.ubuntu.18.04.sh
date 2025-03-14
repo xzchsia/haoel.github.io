@@ -141,7 +141,7 @@ check_container(){
 install_certbot() {
     echo "开始安装 certbot 命令行工具"
     sudo apt update -qq
-    sudo apt-get install -y software-properties-common
+    # sudo apt-get install -y software-properties-common
     sudo apt-get install -y certbot
 }
 

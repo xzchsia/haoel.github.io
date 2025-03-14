@@ -51,19 +51,21 @@ install_bbr() {
 }
 
 ## 使用apt安装方法来获取最新版本
-# install_certbot() {
-#     echo "开始安装 certbot 命令行工具"
-#     sudo apt update -qq
-#     sudo apt-get install -y certbot
-# }
-
 install_certbot() {
     echo "开始安装 certbot 命令行工具"
     sudo apt update -qq
-    sudo apt install -y snapd
-    sudo snap install --classic certbot
-    sudo ln -s /snap/bin/certbot /usr/bin/certbot
+    sudo apt-get install -y certbot
+    echo "certbot 命令行工具安装成功"
 }
+
+# install_certbot() {
+#     echo "开始安装 certbot 命令行工具"
+#     sudo apt update -qq
+#     sudo apt install -y snapd
+#     sudo snap install --classic certbot
+#     sudo ln -s /snap/bin/certbot /usr/bin/certbot
+# }
+
 
 create_cert() {
     if ! [ -x "$(command -v certbot)" ]; then
