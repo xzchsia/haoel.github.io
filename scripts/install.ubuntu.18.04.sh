@@ -73,13 +73,13 @@ install_docker() {
     if ! command -v docker &> /dev/null; then
         echo "开始安装 Docker CE"
 
-        # 安装必要的依赖包
-        sudo apt-get update -qq
-        sudo apt-get install -y \
-            apt-transport-https \
-            ca-certificates \
-            curl \
-            software-properties-common
+        # # 安装必要的依赖包
+        # sudo apt-get update -qq
+        # sudo apt-get install -y \
+        #     apt-transport-https \
+        #     ca-certificates \
+        #     curl \
+        #     software-properties-common
 
         # 添加 Docker 官方 GPG 密钥
         sudo mkdir -p /etc/apt/keyrings
@@ -91,7 +91,8 @@ install_docker() {
 
         # 安装 Docker CE
         sudo apt-get update -qq
-        sudo apt-get install -y docker-ce docker-ce-cli containerd.io
+        # sudo apt-get install -y docker-ce docker-ce-cli containerd.io
+        sudo apt-get install -y docker-ce
 
         # 将当前用户添加到 docker 用户组
         sudo usermod -aG docker $USER
@@ -242,10 +243,6 @@ crontab_exists() {
 # }
 
 create_cron_job() {
-    # # 定义颜色变量
-    # COLOR_SUCC='\033[0;32m'
-    # COLOR_NONE='\033[0m'
-
     # 检查定时任务是否已经存在
     crontab_exists() {
         local task="$1"
