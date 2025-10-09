@@ -91,8 +91,8 @@ install_docker() {
 
         # 安装 Docker CE
         sudo apt-get update -qq
-        # sudo apt-get install -y docker-ce docker-ce-cli containerd.io
-        sudo apt-get install -y docker-ce
+        sudo apt-get install -y docker-ce docker-ce-cli containerd.io
+        # sudo apt-get install -y docker-ce
 
         # 将当前用户添加到 docker 用户组
         sudo usermod -aG docker $USER
@@ -364,6 +364,7 @@ uninstall_services() {
         sudo rm /etc/apparmor.d/docker
         sudo groupdel docker
         sudo rm -rf /var/run/docker.sock
+        sudo rm -rf /usr/bin/docker
         echo -e "${COLOR_SUCC}Docker 已卸载${COLOR_NONE}"
     else
         echo -e "${COLOR_ERROR}Docker 未安装${COLOR_NONE}"
