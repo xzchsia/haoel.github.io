@@ -127,34 +127,59 @@ check_container(){
     fi
 }
 
-# install_certbot() {
-#     echo "开始安装 certbot 命令行工具"
-#     sudo apt-get update -qq
-#     sudo apt-get install -y software-properties-common
-#     sudo add-apt-repository universe
-#     sudo add-apt-repository ppa:certbot/certbot
-#     sudo apt-get update -qq
-#     sudo apt-get install -y certbot
-# }
+### 安装 acme.sh 工具 ###
+install_acme_sh() {
+    echo "开始安装 acme.sh 命令行工具"
+    read -r -p "请输入你要使用的email:" email
+    curl https://get.acme.sh | sh -s email="$email"
 
-# 由于 Certbot 的 PPA 已被弃用，我们可以使用apt安装方法来获取最新版本
-install_certbot() {
-    echo "开始安装 certbot 命令行工具"
-    sudo apt update -qq
-    # sudo apt-get install -y software-properties-common
-    sudo apt-get install -y certbot
+    # 立即加载 acme.sh 命令别名
+    source ~/.bashrc
+
+    # 设置默认 CA 为 Let's Encrypt（默认是 ZeroSSL）
+    ~/.acme.sh/acme.sh --set-default-ca --server letsencrypt
+
+    # 安装 socat（用于 standalone 模式）
+    sudo apt-get install -y socat
 }
 
-## 由于 Certbot 的 PPA 已被弃用，我们可以使用官方推荐的安装方法来获取最新版本
+### 创建 SSL 证书 ###
+create_cert() {
+    if ! [ -x "$(command -v acme.sh)" ]; then
+        install_acme_sh
+    fi
+
+    echo "开始生成 SSL 证书"
+    echo -e "${COLOR_ERROR}注意：生成证书前,需要将域名指向一个有效的 IP,否则无法创建证书.${COLOR_NONE}"
+    read -r -p "是否已经将域名指向了 IP？[Y/n]" has_record
+
+    if ! [[ "$has_record" = "Y" ]]; then
+        echo "请操作完成后再继续."
+        return
+    fi
+
+    read -r -p "请输入你要使用的域名:" domain
+
+    # 使用 standalone 模式申请证书
+    ~/.acme.sh/acme.sh --issue --standalone -d "${domain}"
+
+    # # 安装证书到指定路径（可根据你的服务调整）
+    # ~/.acme.sh/acme.sh --install-cert -d "${domain}" \
+    #     --key-file       /etc/ssl/private/"${domain}".key \
+    #     --fullchain-file /etc/ssl/certs/"${domain}".crt \
+    #     --reloadcmd     "systemctl reload nginx"
+
+    # echo "证书已安装，路径如下："
+    # echo "/etc/ssl/private/${domain}.key"
+    # echo "/etc/ssl/certs/${domain}.crt"
+}
+
+# # 由于 Certbot 的 PPA 已被弃用，我们可以使用apt安装方法来获取最新版本
 # install_certbot() {
 #     echo "开始安装 certbot 命令行工具"
 #     sudo apt update -qq
-#     sudo apt install -y software-properties-common
-#     sudo add-apt-repository universe
-#     sudo apt update -qq
-#     sudo apt install -y snapd
-#     sudo snap install --classic certbot
-#     sudo ln -s /snap/bin/certbot /usr/bin/certbot
+#     # sudo apt-get install -y software-properties-common
+#     sudo apt-get install -y certbot
 # }
 
 # ## 系统推荐的新的安装certbot的脚本，但是没有测试，是否会丢弃其他依赖，所有暂时还使用上面的完全版本
@@ -166,24 +191,60 @@ install_certbot() {
 #     sudo ln -s /snap/bin/certbot /usr/bin/certbot
 # }
 
-create_cert() {
-    if ! [ -x "$(command -v certbot)" ]; then
-        install_certbot
-    fi
+# create_cert() {
+#     if ! [ -x "$(command -v certbot)" ]; then
+#         install_certbot
+#     fi
 
-    echo "开始生成 SSL 证书"
-    echo -e "${COLOR_ERROR}注意：生成证书前,需要将域名指向一个有效的 IP,否则无法创建证书.${COLOR_NONE}"
-    read -r -p "是否已经将域名指向了 IP？[Y/n]" has_record
+#     echo "开始生成 SSL 证书"
+#     echo -e "${COLOR_ERROR}注意：生成证书前,需要将域名指向一个有效的 IP,否则无法创建证书.${COLOR_NONE}"
+#     read -r -p "是否已经将域名指向了 IP？[Y/n]" has_record
 
-    if ! [[ "$has_record" = "Y" ]] ;then
-        echo "请操作完成后再继续."
-        return
-    fi
+#     if ! [[ "$has_record" = "Y" ]] ;then
+#         echo "请操作完成后再继续."
+#         return
+#     fi
 
-    read -r -p "请输入你要使用的域名:" domain
+#     read -r -p "请输入你要使用的域名:" domain
 
-    sudo certbot certonly --standalone -d "${domain}"
-}
+#     sudo certbot certonly --standalone -d "${domain}"
+# }
+
+# install_gost() {
+#     if ! [ -x "$(command -v docker)" ]; then
+#         echo -e "${COLOR_ERROR}未发现Docker，请求安装 Docker ! ${COLOR_NONE}"
+#         return
+#     fi
+
+#     if check_container gost ; then
+#         echo -e "${COLOR_ERROR}Gost 容器已经在运行了，你可以手动停止容器，并删除容器，然后再执行本命令来重新安装 Gost。 ${COLOR_NONE}"
+#         return
+#     fi
+
+#     echo "准备启动 Gost 代理程序,为了安全,需要使用用户名与密码进行认证."
+#     read -r -p "请输入你要使用的域名：" DOMAIN
+#     read -r -p "请输入你要使用的用户名:" USER
+#     read -r -p "请输入你要使用的密码:" PASS
+#     read -r -p "请输入HTTP/2需要侦听的端口号(443)：" PORT
+
+#     if [[ -z "${PORT// }" ]] || ! [[ "${PORT}" =~ ^[0-9]+$ ]] || ! { [ "$PORT" -ge 1 ] && [ "$PORT" -le 65535 ]; }; then
+#         echo -e "${COLOR_ERROR}非法端口,使用默认端口 443 !${COLOR_NONE}"
+#         PORT=443
+#     fi
+
+#     BIND_IP=0.0.0.0
+#     CERT_DIR=/etc/letsencrypt
+#     CERT=${CERT_DIR}/live/${DOMAIN}/fullchain.pem
+#     KEY=${CERT_DIR}/live/${DOMAIN}/privkey.pem
+
+#     ## 此处的--name gost是自定义的容器实例名称
+#     ## ginuerzh/gost是V2版本的容器
+#     ## gogost/gost是V3版本的容器
+#     sudo docker run -d --name gost \
+#         -v ${CERT_DIR}:${CERT_DIR}:ro \
+#         --net=host ginuerzh/gost \
+#         -L "http2://${USER}:${PASS}@${BIND_IP}:${PORT}?cert=${CERT}&key=${KEY}&probe_resist=code:400&knock=www.google.com"
+# }
 
 install_gost() {
     if ! [ -x "$(command -v docker)" ]; then
@@ -208,18 +269,26 @@ install_gost() {
     fi
 
     BIND_IP=0.0.0.0
-    CERT_DIR=/etc/letsencrypt
-    CERT=${CERT_DIR}/live/${DOMAIN}/fullchain.pem
-    KEY=${CERT_DIR}/live/${DOMAIN}/privkey.pem
+    CERT_DIR=/etc/ssl/gost/${DOMAIN}
+    CERT=${CERT_DIR}/fullchain.pem
+    KEY=${CERT_DIR}/key.pem
 
-    ## 此处的--name gost是自定义的容器实例名称
-    ## ginuerzh/gost是V2版本的容器
-    ## gogost/gost是V3版本的容器
+    # 创建证书目录
+    sudo mkdir -p "${CERT_DIR}"
+
+    # 安装证书（假设已申请成功）
+    ~/.acme.sh/acme.sh --install-cert -d "${DOMAIN}" \
+        --key-file "${KEY}" \
+        --fullchain-file "${CERT}" \
+        --reloadcmd "docker restart gost"
+
+    # 启动 Gost 容器
     sudo docker run -d --name gost \
         -v ${CERT_DIR}:${CERT_DIR}:ro \
         --net=host ginuerzh/gost \
         -L "http2://${USER}:${PASS}@${BIND_IP}:${PORT}?cert=${CERT}&key=${KEY}&probe_resist=code:400&knock=www.google.com"
 }
+
 
 crontab_exists() {
     crontab -l 2>/dev/null | grep "$1" >/dev/null 2>/dev/null
@@ -242,6 +311,32 @@ crontab_exists() {
 #     fi
 # }
 
+# create_cron_job() {
+#     # 检查定时任务是否已经存在
+#     crontab_exists() {
+#         local task="$1"
+#         crontab -l 2>/dev/null | grep -Fxq "$task"
+#     }
+
+#     # 添加 certbot 定时任务
+#     CERTBOT_TASK="0 0 1 * * /usr/bin/certbot renew --force-renewal"
+#     if ! crontab_exists "$CERTBOT_TASK"; then
+#         (crontab -l 2>/dev/null; echo "$CERTBOT_TASK") | crontab -
+#         echo -e "${COLOR_SUCC}成功安装证书renew定时作业！${COLOR_NONE}"
+#     else
+#         echo -e "${COLOR_SUCC}证书renew定时作业已经安装过！${COLOR_NONE}"
+#     fi
+
+#     # 添加 docker restart gost 定时任务
+#     GOST_TASK="5 0 1 * * /usr/bin/docker restart gost"
+#     if ! crontab_exists "$GOST_TASK"; then
+#         (crontab -l 2>/dev/null; echo "$GOST_TASK") | crontab -
+#         echo -e "${COLOR_SUCC}成功安装gost更新证书定时作业！${COLOR_NONE}"
+#     else
+#         echo -e "${COLOR_SUCC}gost更新证书定时作业已经安装过！${COLOR_NONE}"
+#     fi
+# }
+
 create_cron_job() {
     # 检查定时任务是否已经存在
     crontab_exists() {
@@ -249,24 +344,25 @@ create_cron_job() {
         crontab -l 2>/dev/null | grep -Fxq "$task"
     }
 
-    # 添加 certbot 定时任务
-    CERTBOT_TASK="0 0 1 * * /usr/bin/certbot renew --force-renewal"
-    if ! crontab_exists "$CERTBOT_TASK"; then
-        (crontab -l 2>/dev/null; echo "$CERTBOT_TASK") | crontab -
-        echo -e "${COLOR_SUCC}成功安装证书renew定时作业！${COLOR_NONE}"
+    # 添加 acme.sh 自动续期任务
+    ACMESH_TASK="0 0 1 * * ~/.acme.sh/acme.sh --cron --home ~/.acme.sh > /dev/null"
+    if ! crontab_exists "$ACMESH_TASK"; then
+        (crontab -l 2>/dev/null; echo "$ACMESH_TASK") | crontab -
+        echo -e "${COLOR_SUCC}成功安装 acme.sh 证书续期定时作业！${COLOR_NONE}"
     else
-        echo -e "${COLOR_SUCC}证书renew定时作业已经安装过！${COLOR_NONE}"
+        echo -e "${COLOR_SUCC}acme.sh 证书续期定时作业已经安装过！${COLOR_NONE}"
     fi
 
-    # 添加 docker restart gost 定时任务
+    # 添加 docker restart gost 定时任务（可选）
     GOST_TASK="5 0 1 * * /usr/bin/docker restart gost"
     if ! crontab_exists "$GOST_TASK"; then
         (crontab -l 2>/dev/null; echo "$GOST_TASK") | crontab -
-        echo -e "${COLOR_SUCC}成功安装gost更新证书定时作业！${COLOR_NONE}"
+        echo -e "${COLOR_SUCC}成功安装 gost 重启定时作业！${COLOR_NONE}"
     else
-        echo -e "${COLOR_SUCC}gost更新证书定时作业已经安装过！${COLOR_NONE}"
+        echo -e "${COLOR_SUCC}gost 重启定时作业已经安装过！${COLOR_NONE}"
     fi
 }
+
 
 install_shadowsocks(){
     if ! [ -x "$(command -v docker)" ]; then
@@ -330,12 +426,104 @@ install_brook(){
 
 # uninstall
 
+# uninstall_services() {
+#     echo "开始卸载服务..."
+
+#     # 获取 Gost 容器的域名
+#     if sudo docker ps -a --format '{{.Names}}' | grep -q gost; then
+#         gost_domain=$(sudo docker inspect gost | grep -oP '(?<=cert=\/etc\/letsencrypt\/live\/)[^/]+')
+#         echo -e "${COLOR_SUCC}检测到 Gost 使用的域名: $gost_domain${COLOR_NONE}"
+#     else
+#         echo -e "${COLOR_ERROR}未检测到 Gost 容器${COLOR_NONE}"
+#         gost_domain=""
+#     fi
+
+#     # 停止并移除容器
+#     for container in gost ss vpn; do
+#         if sudo docker ps -a --format '{{.Names}}' | grep -q $container; then
+#             sudo docker stop $container
+#             sudo docker rm $container
+#             echo -e "${COLOR_SUCC}成功停止并移除容器 $container${COLOR_NONE}"
+#         else
+#             echo -e "${COLOR_ERROR}容器 $container 未找到${COLOR_NONE}"
+#         fi
+#     done
+
+
+#     # 卸载 Docker
+#     if [ -x "$(command -v docker)" ]; then
+#         sudo systemctl stop docker
+#         sudo apt-get purge -y docker-ce
+#         sudo apt-get autoremove -y --purge docker-ce
+#         sudo rm -rf /var/lib/docker
+#         sudo rm -rf /etc/docker
+#         sudo rm /etc/apparmor.d/docker
+#         sudo groupdel docker
+#         sudo rm -rf /var/run/docker.sock
+#         sudo rm -rf /usr/bin/docker
+#         echo -e "${COLOR_SUCC}Docker 已卸载${COLOR_NONE}"
+#     else
+#         echo -e "${COLOR_ERROR}Docker 未安装${COLOR_NONE}"
+#     fi
+
+#     # 卸载 Certbot 并删除证书文件
+#     if [ -x "$(command -v certbot)" ]; then
+#         if [ -n "$gost_domain" ]; then
+#             domain=$gost_domain
+#         else
+#             echo "请输入要删除证书的域名:"
+#             read -r domain
+#         fi
+        
+#         sudo apt-get purge -y certbot
+#         sudo apt-get autoremove -y --purge certbot
+
+#         sudo rm -rf /etc/letsencrypt/live/$domain
+#         sudo rm -rf /etc/letsencrypt/archive/$domain
+#         sudo rm -rf /etc/letsencrypt/renewal/$domain.conf
+        
+#         crontab -l 2>/dev/null | grep -v "/usr/bin/certbot renew --force-renewal" | crontab -
+
+#         echo -e "${COLOR_SUCC}Certbot 和 SSL 证书已删除${COLOR_NONE}"
+#     else
+#         echo -e "${COLOR_ERROR}Certbot 未安装${COLOR_NONE}"
+#     fi
+
+#     # 卸载 BBR
+#     # if lsmod | grep -q bbr; then
+#     #     sudo rmmod tcp_bbr
+#     #     sudo sed -i '/tcp_bbr/d' /etc/modules-load.d/modules.conf
+#     #     sudo sed -i '/net.core.default_qdisc=fq/d' /etc/sysctl.conf
+#     #     sudo sed -i '/net.ipv4.tcp_congestion_control=bbr/d' /etc/sysctl.conf
+#     #     sudo sysctl -p
+#     #     echo -e "${COLOR_SUCC}BBR 已卸载${COLOR_NONE}"
+#     # else
+#     #     echo -e "${COLOR_ERROR}BBR 未安装${COLOR_NONE}"
+#     # fi
+
+#     # 卸载 Brook
+#     if [ -e /usr/local/brook/brook ]; then
+#         sudo rm /usr/local/brook/brook
+#         echo -e "${COLOR_SUCC}Brook 已卸载${COLOR_NONE}"
+#     else
+#         echo -e "${COLOR_ERROR}Brook 未安装${COLOR_NONE}"
+#     fi
+
+#     # 删除 Cron Jobs
+#     crontab -l 2>/dev/null | grep -v "/usr/bin/certbot renew --force-renewal" | crontab -
+#     crontab -l 2>/dev/null | grep -v "/usr/bin/docker restart gost" | crontab -
+#     echo -e "${COLOR_SUCC}Cron Jobs 已删除${COLOR_NONE}"
+
+#     echo -e "${COLOR_SUCC}所有操作已完成，即将重启系统...${COLORNONE}" 
+#     sudo reboot
+# }
+
 uninstall_services() {
     echo "开始卸载服务..."
 
-    # 获取 Gost 容器的域名
+    # 获取 Gost 容器的域名（适配 acme.sh 路径）
     if sudo docker ps -a --format '{{.Names}}' | grep -q gost; then
-        gost_domain=$(sudo docker inspect gost | grep -oP '(?<=cert=\/etc\/letsencrypt\/live\/)[^/]+')
+        gost_domain=$(sudo docker inspect gost | grep -oP '(?<=cert=\/etc\/ssl\/gost\/)[^/]+(?=\/fullchain.pem)')
         echo -e "${COLOR_SUCC}检测到 Gost 使用的域名: $gost_domain${COLOR_NONE}"
     else
         echo -e "${COLOR_ERROR}未检测到 Gost 容器${COLOR_NONE}"
@@ -353,7 +541,6 @@ uninstall_services() {
         fi
     done
 
-
     # 卸载 Docker
     if [ -x "$(command -v docker)" ]; then
         sudo systemctl stop docker
@@ -370,40 +557,26 @@ uninstall_services() {
         echo -e "${COLOR_ERROR}Docker 未安装${COLOR_NONE}"
     fi
 
-    # 卸载 Certbot 并删除证书文件
-    if [ -x "$(command -v certbot)" ]; then
+    # 卸载 acme.sh 并删除证书文件
+    if [ -f ~/.acme.sh/acme.sh ]; then
         if [ -n "$gost_domain" ]; then
             domain=$gost_domain
         else
             echo "请输入要删除证书的域名:"
             read -r domain
         fi
-        
-        sudo apt-get purge -y certbot
-        sudo apt-get autoremove -y --purge certbot
 
-        sudo rm -rf /etc/letsencrypt/live/$domain
-        sudo rm -rf /etc/letsencrypt/archive/$domain
-        sudo rm -rf /etc/letsencrypt/renewal/$domain.conf
-        
-        crontab -l 2>/dev/null | grep -v "/usr/bin/certbot renew --force-renewal" | crontab -
+        ~/.acme.sh/acme.sh --remove -d "$domain"
+        sudo rm -rf /etc/ssl/gost/"$domain"
 
-        echo -e "${COLOR_SUCC}Certbot 和 SSL 证书已删除${COLOR_NONE}"
+        # 删除 acme.sh 本体（可选）
+        rm -rf ~/.acme.sh
+        sed -i '/acme.sh/d' ~/.bashrc
+
+        echo -e "${COLOR_SUCC}acme.sh 和 SSL 证书已删除${COLOR_NONE}"
     else
-        echo -e "${COLOR_ERROR}Certbot 未安装${COLOR_NONE}"
+        echo -e "${COLOR_ERROR}acme.sh 未安装${COLOR_NONE}"
     fi
-
-    # 卸载 BBR
-    # if lsmod | grep -q bbr; then
-    #     sudo rmmod tcp_bbr
-    #     sudo sed -i '/tcp_bbr/d' /etc/modules-load.d/modules.conf
-    #     sudo sed -i '/net.core.default_qdisc=fq/d' /etc/sysctl.conf
-    #     sudo sed -i '/net.ipv4.tcp_congestion_control=bbr/d' /etc/sysctl.conf
-    #     sudo sysctl -p
-    #     echo -e "${COLOR_SUCC}BBR 已卸载${COLOR_NONE}"
-    # else
-    #     echo -e "${COLOR_ERROR}BBR 未安装${COLOR_NONE}"
-    # fi
 
     # 卸载 Brook
     if [ -e /usr/local/brook/brook ]; then
@@ -413,12 +586,12 @@ uninstall_services() {
         echo -e "${COLOR_ERROR}Brook 未安装${COLOR_NONE}"
     fi
 
-    # 删除 Cron Jobs
-    crontab -l 2>/dev/null | grep -v "/usr/bin/certbot renew --force-renewal" | crontab -
+    # 删除 Cron Jobs（适配 acme.sh 和 gost）
+    crontab -l 2>/dev/null | grep -v "acme.sh --cron" | crontab -
     crontab -l 2>/dev/null | grep -v "/usr/bin/docker restart gost" | crontab -
     echo -e "${COLOR_SUCC}Cron Jobs 已删除${COLOR_NONE}"
 
-    echo -e "${COLOR_SUCC}所有操作已完成，即将重启系统...${COLORNONE}" 
+    echo -e "${COLOR_SUCC}所有操作已完成，即将重启系统...${COLOR_NONE}" 
     sudo reboot
 }
 
