@@ -130,6 +130,9 @@ check_container(){
 ### 安装 acme.sh 工具 ###
 install_acme_sh() {
     echo "开始安装 acme.sh 命令行工具"
+    # 安装 socat（用于 standalone 模式）
+    sudo apt-get install -y socat
+    
     read -r -p "请输入你要使用的email:" email
     curl https://get.acme.sh | sh -s email="$email"
 
@@ -138,9 +141,6 @@ install_acme_sh() {
 
     # 设置默认 CA 为 Let's Encrypt（默认是 ZeroSSL）
     ~/.acme.sh/acme.sh --set-default-ca --server letsencrypt
-
-    # 安装 socat（用于 standalone 模式）
-    sudo apt-get install -y socat
 }
 
 ### 创建 SSL 证书 ###
