@@ -64,25 +64,53 @@ install_docker() {
     # 检查 Docker 是否已安装
     if ! command -v docker &> /dev/null; then
         echo "开始安装 Docker CE"
+        
+        # 安装依赖包
+        sudo apt-get update -qq
+        sudo apt-get install -y ca-certificates curl gnupg lsb-release
 
-        # 添加 Docker 官方 GPG 密钥
-        sudo mkdir -p /etc/apt/keyrings
+        # 添加 Docker 官方 GPG 密钥（使用新的方法）
+        sudo install -m 0755 -d /etc/apt/keyrings
         curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+        sudo chmod a+r /etc/apt/keyrings/docker.gpg
 
-        # 设置 Docker 源（仅支持 Ubuntu 20.04 及以上）
-        echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | \
+        # 设置 Docker 源
+        # 对于 24.04，如果 noble 仓库不存在，使用 jammy (22.04 LTS) 仓库
+        UBUNTU_CODENAME=$(lsb_release -cs)
+        if [ "$UBUNTU_CODENAME" = "noble" ]; then
+            UBUNTU_CODENAME="jammy"
+        fi
+        
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $UBUNTU_CODENAME stable" | \
         sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
 
-        # 安装 Docker CE
+        # 更新包索引
         sudo apt-get update -qq
-        sudo apt-get install -y docker-ce docker-ce-cli containerd.io
-        # sudo apt-get install -y docker-ce
 
-        # 将当前用户添加到 docker 用户组
-        # sudo usermod -aG docker $USER
-        echo -e "${COLOR_SUCC}Docker CE 安装成功，请重新登录以应用用户组更改。${COLOR_NONE}"
+        # 安装 Docker CE
+        sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+        # 启动 Docker 服务
+        sudo systemctl enable docker
+        sudo systemctl start docker
+
+        # 检查 Docker 是否正常运行
+        if ! sudo docker run --rm hello-world &> /dev/null; then
+            echo -e "${COLOR_ERROR}Docker 安装可能存在问题，请检查系统日志${COLOR_NONE}"
+            echo "可以使用以下命令查看 Docker 状态："
+            echo "  sudo systemctl status docker"
+            echo "  sudo journalctl -xu docker"
+        else
+            echo -e "${COLOR_SUCC}Docker CE 安装成功并且可以正常运行${COLOR_NONE}"
+        fi
     else
         echo -e "${COLOR_SUCC}Docker CE 已经安装成功了${COLOR_NONE}"
+        
+        # 确保 Docker 服务正在运行
+        if ! sudo systemctl is-active docker &> /dev/null; then
+            echo "Docker 服务未运行，正在启动..."
+            sudo systemctl start docker
+        fi
     fi
 }
 
