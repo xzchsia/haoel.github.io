@@ -64,14 +64,6 @@ install_docker() {
     if ! command -v docker &> /dev/null; then
         echo "开始安装 Docker CE"
 
-        # # 安装必要的依赖包
-        # sudo apt-get update -qq
-        # sudo apt-get install -y \
-        #     apt-transport-https \
-        #     ca-certificates \
-        #     curl \
-        #     software-properties-common
-
         # 添加 Docker 官方 GPG 密钥
         sudo mkdir -p /etc/apt/keyrings
         curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
@@ -83,14 +75,34 @@ install_docker() {
         # 安装 Docker CE
         sudo apt-get update -qq
         sudo apt-get install -y docker-ce docker-ce-cli containerd.io
-        # sudo apt-get install -y docker-ce
 
         # 将当前用户添加到 docker 用户组
         sudo usermod -aG docker $USER
-        echo -e "${COLOR_SUCC}Docker CE 安装成功，请重新登录以应用用户组更改。${COLOR_NONE}"
+
+        # 确保 Docker 服务启动并设置开机自启
+        sudo systemctl start docker
+        sudo systemctl enable docker
+
+        # 验证 Docker 服务状态
+        if ! sudo systemctl is-active --quiet docker; then
+            echo -e "${COLOR_ERROR}Docker 服务启动失败，请检查系统日志${COLOR_NONE}"
+            return 1
+        fi
+
+        echo -e "${COLOR_SUCC}Docker CE 安装成功并已启动，请重新登录以应用用户组更改。${COLOR_NONE}"
     else
-        echo -e "${COLOR_SUCC}Docker CE 已经安装成功了${COLOR_NONE}"
+        # 如果 Docker 已安装，也要确保服务正在运行
+        if ! sudo systemctl is-active --quiet docker; then
+            echo "Docker 服务未运行，正在启动..."
+            sudo systemctl start docker
+            sudo systemctl enable docker
+        fi
+        echo -e "${COLOR_SUCC}Docker CE 已经安装并正在运行${COLOR_NONE}"
     fi
+
+    # 显示 Docker 版本和服务状态
+    docker --version
+    sudo systemctl status docker --no-pager
 }
 
 # ## 修复替换提示 解决 apt-key 弃用警告，暂未测试
