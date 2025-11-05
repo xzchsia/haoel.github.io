@@ -283,9 +283,20 @@ create_cert() {
 }
 
 install_gost() {
-    if ! [ -x "$(command -v docker)" ]; then
-        echo -e "${COLOR_ERROR}未发现Docker，请求安装 Docker ! ${COLOR_NONE}"
+    # 更鲁棒的 docker 检查：考虑 PATH 限制（sudo 情况）和常见安装路径
+    if ! command -v docker &> /dev/null && [ ! -x "/usr/bin/docker" ] && [ ! -x "/usr/local/bin/docker" ]; then
+        echo -e "${COLOR_ERROR}未发现 Docker，可执行文件不存在，请先安装 Docker ! ${COLOR_NONE}"
         return
+    fi
+
+    # 如果 docker 可执行但服务未运行，尝试启动（提高健壮性）
+    if ! sudo systemctl is-active --quiet docker 2>/dev/null; then
+        echo "检测到 Docker 服务未运行，尝试启动 docker 服务..."
+        sudo systemctl start docker || {
+            echo -e "${COLOR_ERROR}尝试启动 Docker 服务失败，请检查系统日志${COLOR_NONE}"
+            return
+        }
+        sudo systemctl enable docker || true
     fi
 
     if check_container gost ; then
