@@ -81,6 +81,34 @@ create_cert() {
         return
     fi
 
+    # 检查 80 端口
+    echo "检查 80 端口状态..."
+    if sudo lsof -i :80 > /dev/null 2>&1; then
+        echo -e "${COLOR_ERROR}警告：80 端口被占用${COLOR_NONE}"
+        echo "占用 80 端口的进程列表："
+        sudo lsof -i :80
+        read -r -p "是否要关闭这些进程？[y/N] " kill_process
+        if [[ "$kill_process" =~ ^[Yy]$ ]]; then
+            echo "正在停止占用 80 端口的进程..."
+            sudo fuser -k 80/tcp
+            sleep 2
+        else
+            echo "请手动释放 80 端口后再继续"
+            return 1
+        fi
+    fi
+
+    # 检查防火墙规则
+    echo "检查防火墙规则..."
+    if command -v ufw >/dev/null 2>&1; then
+        if sudo ufw status | grep -q "active"; then
+            if ! sudo ufw status | grep -q "80.*ALLOW"; then
+                echo "正在添加防火墙规则允许 80 端口..."
+                sudo ufw allow 80/tcp
+            fi
+        fi
+    fi
+
     read -r -p "请输入你要使用的域名:" domain
 
     sudo certbot certonly --standalone -d "${domain}"
