@@ -119,6 +119,66 @@ check_container(){
 }
 
 ### 安装 acme.sh 工具 ###
+# install_acme_sh() {
+#     echo "开始安装 acme.sh 命令行工具"
+    
+#     # 安装依赖
+#     sudo apt-get update
+#     sudo apt-get install -y socat curl ca-certificates
+    
+#     # 检查 DNS over HTTPS
+#     if dpkg --compare-versions "$(lsb_release -rs)" "ge" "22.04"; then
+#         sudo apt-get install -y systemd-resolved
+#         sudo systemctl enable systemd-resolved
+#         sudo systemctl start systemd-resolved
+#     fi
+    
+#     read -r -p "请输入你要使用的email:" email
+    
+#     # 安装或更新 acme.sh
+#     if [ -f ~/.acme.sh/acme.sh ]; then
+#         ~/.acme.sh/acme.sh --upgrade
+#     else
+#         curl https://get.acme.sh | sh -s email="$email"
+#     fi
+    
+#     # 配置 acme.sh
+#     export PATH="$PATH:$HOME/.acme.sh"
+#     ~/.acme.sh/acme.sh --set-default-ca --server letsencrypt
+# }
+
+# ### 创建 SSL 证书 ###
+# create_cert() {
+#     if ! [ -x "$(command -v acme.sh)" ]; then
+#         install_acme_sh
+#     fi
+
+#     echo "开始生成 SSL 证书"
+#     echo -e "${COLOR_ERROR}注意：生成证书前,需要将域名指向一个有效的 IP,否则无法创建证书.${COLOR_NONE}"
+#     read -r -p "是否已经将域名指向了 IP？[Y/n]" has_record
+
+#     if ! [[ "$has_record" = "Y" ]]; then
+#         echo "请操作完成后再继续."
+#         return
+#     fi
+
+#     read -r -p "请输入你要使用的域名:" domain
+
+#     # 使用 standalone 模式申请证书
+#     ~/.acme.sh/acme.sh --issue --standalone -d "${domain}"
+
+#     # # 安装证书到指定路径（可根据你的服务调整）
+#     # ~/.acme.sh/acme.sh --install-cert -d "${domain}" \
+#     #     --key-file       /etc/ssl/private/"${domain}".key \
+#     #     --fullchain-file /etc/ssl/certs/"${domain}".crt \
+#     #     --reloadcmd     "systemctl reload nginx"
+
+#     # echo "证书已安装，路径如下："
+#     # echo "/etc/ssl/private/${domain}.key"
+#     # echo "/etc/ssl/certs/${domain}.crt"
+# }
+
+### 安装 acme.sh 工具 ###
 install_acme_sh() {
     echo "开始安装 acme.sh 命令行工具"
     
@@ -126,30 +186,56 @@ install_acme_sh() {
     sudo apt-get update
     sudo apt-get install -y socat curl ca-certificates
     
-    # 检查 DNS over HTTPS
-    if dpkg --compare-versions "$(lsb_release -rs)" "ge" "22.04"; then
-        sudo apt-get install -y systemd-resolved
-        sudo systemctl enable systemd-resolved
-        sudo systemctl start systemd-resolved
-    fi
-    
     read -r -p "请输入你要使用的email:" email
     
-    # 安装或更新 acme.sh
-    if [ -f ~/.acme.sh/acme.sh ]; then
-        ~/.acme.sh/acme.sh --upgrade
+    # 以当前用户身份安装（不使用 sudo）
+    if [ "$(id -u)" = "0" ]; then
+        # 如果是 root 用户，切换到 SUDO_USER
+        if [ -n "$SUDO_USER" ]; then
+            INSTALL_USER=$SUDO_USER
+            INSTALL_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6)
+        else
+            echo "错误：请使用 'sudo -i' 获取完整的 root 环境，或使用非 root 用户执行此脚本"
+            return 1
+        fi
+    else
+        INSTALL_USER=$USER
+        INSTALL_HOME=$HOME
+    fi
+    
+    # 以正确的用户身份安装
+    if [ "$(id -u)" = "0" ]; then
+        su - "$INSTALL_USER" -c "curl https://get.acme.sh | sh -s email=$email"
     else
         curl https://get.acme.sh | sh -s email="$email"
     fi
     
-    # 配置 acme.sh
-    export PATH="$PATH:$HOME/.acme.sh"
-    ~/.acme.sh/acme.sh --set-default-ca --server letsencrypt
+    # 设置默认 CA
+    if [ "$(id -u)" = "0" ]; then
+        su - "$INSTALL_USER" -c "~/.acme.sh/acme.sh --set-default-ca --server letsencrypt"
+    else
+        "$INSTALL_HOME/.acme.sh/acme.sh" --set-default-ca --server letsencrypt
+    fi
+    
+    echo "acme.sh 安装完成，请使用非 root 用户执行证书申请操作"
 }
 
 ### 创建 SSL 证书 ###
 create_cert() {
-    if ! [ -x "$(command -v acme.sh)" ]; then
+    # 检查是否以 root 用户运行
+    if [ "$(id -u)" = "0" ]; then
+        if [ -n "$SUDO_USER" ]; then
+            echo "检测到使用 sudo 运行，将切换到普通用户执行证书申请..."
+            # 将命令传递给普通用户执行
+            su - "$SUDO_USER" -c "bash $0"
+            return
+        else
+            echo "错误：请使用非 root 用户执行此命令"
+            return 1
+        fi
+    fi
+
+    if ! [ -f "$HOME/.acme.sh/acme.sh" ]; then
         install_acme_sh
     fi
 
@@ -164,20 +250,16 @@ create_cert() {
 
     read -r -p "请输入你要使用的域名:" domain
 
+    # 检查 80 端口
+    if sudo lsof -i :80 > /dev/null 2>&1; then
+        echo "警告：80 端口被占用，尝试停止相关服务..."
+        sudo fuser -k 80/tcp || true
+        sleep 2
+    fi
+
     # 使用 standalone 模式申请证书
-    ~/.acme.sh/acme.sh --issue --standalone -d "${domain}"
-
-    # # 安装证书到指定路径（可根据你的服务调整）
-    # ~/.acme.sh/acme.sh --install-cert -d "${domain}" \
-    #     --key-file       /etc/ssl/private/"${domain}".key \
-    #     --fullchain-file /etc/ssl/certs/"${domain}".crt \
-    #     --reloadcmd     "systemctl reload nginx"
-
-    # echo "证书已安装，路径如下："
-    # echo "/etc/ssl/private/${domain}.key"
-    # echo "/etc/ssl/certs/${domain}.crt"
+    "$HOME/.acme.sh/acme.sh" --issue --standalone -d "${domain}"
 }
-
 
 install_gost() {
     if ! [ -x "$(command -v docker)" ]; then
