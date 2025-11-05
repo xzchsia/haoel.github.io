@@ -13,7 +13,9 @@ base_url="https://api.github.com/repos/$repo/releases/latest"
 
 update_core(){
     echo -e "${COLOR_ERROR}当前系统内核版本太低 <$VERSION_CURR>,需要更新系统内核.${COLOR_NONE}"
-    sudo apt install -y -qq --install-recommends linux-generic-hwe-18.04
+    # 根据系统版本选择适当的 HWE 内核包
+    UBUNTU_VERSION=$(lsb_release -rs)
+    sudo apt install -y -qq --install-recommends linux-generic-hwe-"${UBUNTU_VERSION}"
     sudo apt autoremove
 
     echo -e "${COLOR_SUCC}内核更新完成,重新启动机器...${COLOR_NONE}"
@@ -21,13 +23,18 @@ update_core(){
 }
 
 check_bbr(){
-    has_bbr=$(lsmod | grep bbr)
-
-    if [ -n "$has_bbr" ] ;then
-        echo -e "${COLOR_SUCC}TCP BBR 拥塞控制算法已经启动${COLOR_NONE}"
-    else
-        start_bbr
+    if grep -q "net.ipv4.tcp_congestion_control=bbr" /proc/sys/net/ipv4/tcp_congestion_control; then
+        echo -e "${COLOR_SUCC}TCP BBR 已经启用${COLOR_NONE}"
+        return 0
     fi
+    
+    # 检查是否支持 BBR
+    if ! modprobe tcp_bbr &> /dev/null; then
+        echo -e "${COLOR_ERROR}当前系统不支持 BBR${COLOR_NONE}"
+        return 1
+    fi
+    
+    start_bbr
 }
 
 start_bbr(){
