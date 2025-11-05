@@ -130,65 +130,6 @@ check_container(){
     fi
 }
 
-### 安装 acme.sh 工具 ###
-# install_acme_sh() {
-#     echo "开始安装 acme.sh 命令行工具"
-    
-#     # 安装依赖
-#     sudo apt-get update
-#     sudo apt-get install -y socat curl ca-certificates
-    
-#     # 检查 DNS over HTTPS
-#     if dpkg --compare-versions "$(lsb_release -rs)" "ge" "22.04"; then
-#         sudo apt-get install -y systemd-resolved
-#         sudo systemctl enable systemd-resolved
-#         sudo systemctl start systemd-resolved
-#     fi
-    
-#     read -r -p "请输入你要使用的email:" email
-    
-#     # 安装或更新 acme.sh
-#     if [ -f ~/.acme.sh/acme.sh ]; then
-#         ~/.acme.sh/acme.sh --upgrade
-#     else
-#         curl https://get.acme.sh | sh -s email="$email"
-#     fi
-    
-#     # 配置 acme.sh
-#     export PATH="$PATH:$HOME/.acme.sh"
-#     ~/.acme.sh/acme.sh --set-default-ca --server letsencrypt
-# }
-
-# ### 创建 SSL 证书 ###
-# create_cert() {
-#     if ! [ -x "$(command -v acme.sh)" ]; then
-#         install_acme_sh
-#     fi
-
-#     echo "开始生成 SSL 证书"
-#     echo -e "${COLOR_ERROR}注意：生成证书前,需要将域名指向一个有效的 IP,否则无法创建证书.${COLOR_NONE}"
-#     read -r -p "是否已经将域名指向了 IP？[Y/n]" has_record
-
-#     if ! [[ "$has_record" = "Y" ]]; then
-#         echo "请操作完成后再继续."
-#         return
-#     fi
-
-#     read -r -p "请输入你要使用的域名:" domain
-
-#     # 使用 standalone 模式申请证书
-#     ~/.acme.sh/acme.sh --issue --standalone -d "${domain}"
-
-#     # # 安装证书到指定路径（可根据你的服务调整）
-#     # ~/.acme.sh/acme.sh --install-cert -d "${domain}" \
-#     #     --key-file       /etc/ssl/private/"${domain}".key \
-#     #     --fullchain-file /etc/ssl/certs/"${domain}".crt \
-#     #     --reloadcmd     "systemctl reload nginx"
-
-#     # echo "证书已安装，路径如下："
-#     # echo "/etc/ssl/private/${domain}.key"
-#     # echo "/etc/ssl/certs/${domain}.crt"
-# }
 
 ### 安装 acme.sh 工具 ###
 install_acme_sh() {
@@ -197,80 +138,148 @@ install_acme_sh() {
     # 安装依赖
     sudo apt-get update
     sudo apt-get install -y socat curl ca-certificates
-    
+
+    # 获取真实用户信息
+    if [ -n "$SUDO_USER" ]; then
+        REAL_USER=$SUDO_USER
+        REAL_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6)
+    else
+        REAL_USER=$USER
+        REAL_HOME=$HOME
+    fi
+
     read -r -p "请输入你要使用的email:" email
-    
-    # 以当前用户身份安装（不使用 sudo）
-    if [ "$(id -u)" = "0" ]; then
-        # 如果是 root 用户，切换到 SUDO_USER
-        if [ -n "$SUDO_USER" ]; then
-            INSTALL_USER=$SUDO_USER
-            INSTALL_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6)
-        else
-            echo "错误：请使用 'sudo -i' 获取完整的 root 环境，或使用非 root 用户执行此脚本"
-            return 1
-        fi
-    else
-        INSTALL_USER=$USER
-        INSTALL_HOME=$HOME
+
+    # 确保目录权限正确
+    if [ ! -d "$REAL_HOME" ]; then
+        echo "错误：用户主目录 $REAL_HOME 不存在"
+        return 1
     fi
-    
-    # 以正确的用户身份安装
-    if [ "$(id -u)" = "0" ]; then
-        su - "$INSTALL_USER" -c "curl https://get.acme.sh | sh -s email=$email"
-    else
-        curl https://get.acme.sh | sh -s email="$email"
-    fi
-    
+
+    # 安装 acme.sh
+    echo "以用户 $REAL_USER 的身份安装 acme.sh..."
+    sudo -u "$REAL_USER" sh -c "curl https://get.acme.sh | sh -s email=$email"
+
     # 设置默认 CA
-    if [ "$(id -u)" = "0" ]; then
-        su - "$INSTALL_USER" -c "~/.acme.sh/acme.sh --set-default-ca --server letsencrypt"
+    if [ -f "$REAL_HOME/.acme.sh/acme.sh" ]; then
+        sudo -u "$REAL_USER" sh -c "$REAL_HOME/.acme.sh/acme.sh --set-default-ca --server letsencrypt"
+        
+        # 确保脚本可执行
+        sudo chmod +x "$REAL_HOME/.acme.sh/acme.sh"
+        
+        echo -e "${COLOR_SUCC}acme.sh 安装完成！${COLOR_NONE}"
+        echo "安装位置: $REAL_HOME/.acme.sh/acme.sh"
+        echo "您可以使用以下命令来运行 acme.sh："
+        echo "sudo -u $REAL_USER $REAL_HOME/.acme.sh/acme.sh [命令]"
     else
-        "$INSTALL_HOME/.acme.sh/acme.sh" --set-default-ca --server letsencrypt
+        echo -e "${COLOR_ERROR}acme.sh 安装失败！${COLOR_NONE}"
+        return 1
     fi
-    
-    echo "acme.sh 安装完成，请使用非 root 用户执行证书申请操作"
 }
 
 ### 创建 SSL 证书 ###
 create_cert() {
-    # 检查是否以 root 用户运行
-    if [ "$(id -u)" = "0" ]; then
-        if [ -n "$SUDO_USER" ]; then
-            echo "检测到使用 sudo 运行，将切换到普通用户执行证书申请..."
-            # 将命令传递给普通用户执行
-            su - "$SUDO_USER" -c "bash $0"
-            return
-        else
-            echo "错误：请使用非 root 用户执行此命令"
+    # 获取真实用户信息
+    if [ -n "$SUDO_USER" ]; then
+        REAL_USER=$SUDO_USER
+        REAL_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6)
+    else
+        REAL_USER=$USER
+        REAL_HOME=$HOME
+    fi
+
+    # 检查 acme.sh 是否已安装
+    if [ ! -f "$REAL_HOME/.acme.sh/acme.sh" ]; then
+        install_acme_sh
+        if [ $? -ne 0 ]; then
             return 1
         fi
     fi
 
-    if ! [ -f "$HOME/.acme.sh/acme.sh" ]; then
-        install_acme_sh
-    fi
-
     echo "开始生成 SSL 证书"
-    echo -e "${COLOR_ERROR}注意：生成证书前,需要将域名指向一个有效的 IP,否则无法创建证书.${COLOR_NONE}"
-    read -r -p "是否已经将域名指向了 IP？[Y/n]" has_record
-
-    if ! [[ "$has_record" = "Y" ]]; then
-        echo "请操作完成后再继续."
-        return
-    fi
-
     read -r -p "请输入你要使用的域名:" domain
 
-    # 检查 80 端口
-    if sudo lsof -i :80 > /dev/null 2>&1; then
-        echo "警告：80 端口被占用，尝试停止相关服务..."
-        sudo fuser -k 80/tcp || true
-        sleep 2
+    # 检查域名解析
+    echo "正在检查域名解析..."
+    DOMAIN_IP=$(dig +short "$domain")
+    SERVER_IP=$(curl -s ifconfig.me || wget -qO- ifconfig.me)
+    
+    if [ -z "$DOMAIN_IP" ]; then
+        echo -e "${COLOR_ERROR}错误：无法解析域名 $domain${COLOR_NONE}"
+        echo "请确保域名已正确设置 DNS 解析"
+        return 1
     fi
 
-    # 使用 standalone 模式申请证书
-    "$HOME/.acme.sh/acme.sh" --issue --standalone -d "${domain}"
+    echo "域名 $domain 解析到 IP: $DOMAIN_IP"
+    echo "服务器当前 IP: $SERVER_IP"
+
+    if [ "$DOMAIN_IP" != "$SERVER_IP" ]; then
+        echo -e "${COLOR_ERROR}警告：域名解析的 IP 与服务器 IP 不匹配${COLOR_NONE}"
+        echo "域名解析可能尚未生效，或解析到了错误的 IP"
+        read -r -p "是否仍要继续？[y/N] " continue_anyway
+        if [[ ! "$continue_anyway" =~ ^[Yy]$ ]]; then
+            return 1
+        fi
+    fi
+
+    # 检查 80 端口
+    echo "检查 80 端口状态..."
+    if sudo lsof -i :80 > /dev/null 2>&1; then
+        echo -e "${COLOR_ERROR}警告：80 端口被占用${COLOR_NONE}"
+        echo "占用 80 端口的进程列表："
+        sudo lsof -i :80
+        read -r -p "是否要关闭这些进程？[y/N] " kill_process
+        if [[ "$kill_process" =~ ^[Yy]$ ]]; then
+            echo "正在停止占用 80 端口的进程..."
+            sudo fuser -k 80/tcp
+            sleep 2
+        else
+            echo "请手动释放 80 端口后再继续"
+            return 1
+        fi
+    fi
+
+    # 检查防火墙规则
+    echo "检查防火墙规则..."
+    if command -v ufw >/dev/null 2>&1; then
+        if sudo ufw status | grep -q "active"; then
+            if ! sudo ufw status | grep -q "80.*ALLOW"; then
+                echo "正在添加防火墙规则允许 80 端口..."
+                sudo ufw allow 80/tcp
+            fi
+        fi
+    fi
+
+    # 测试 80 端口是否可访问
+    echo "测试 80 端口可访问性..."
+    nc -zv localhost 80 2>/dev/null
+    if [ $? -ne 0 ]; then
+        echo -e "${COLOR_ERROR}警告：本地无法访问 80 端口${COLOR_NONE}"
+        echo "请检查系统防火墙设置"
+    fi
+
+    echo "准备申请证书..."
+    echo "使用 --debug 模式获取详细信息..."
+    
+    # 使用 sudo -u 执行 acme.sh 命令，添加 --debug 参数
+    sudo -u "$REAL_USER" sh -c "$REAL_HOME/.acme.sh/acme.sh --issue --debug --standalone -d ${domain}"
+
+    # 检查证书是否成功生成
+    if [ $? -eq 0 ]; then
+        echo -e "${COLOR_SUCC}SSL 证书生成成功！${COLOR_NONE}"
+        
+        # 显示证书信息
+        sudo -u "$REAL_USER" sh -c "$REAL_HOME/.acme.sh/acme.sh --list"
+    else
+        echo -e "${COLOR_ERROR}SSL 证书生成失败！${COLOR_NONE}"
+        echo "可能的解决方案："
+        echo "1. 确保域名已正确解析到服务器IP"
+        echo "2. 等待 DNS 解析生效（可能需要几分钟到几小时）"
+        echo "3. 检查服务器防火墙设置，确保 80 端口开放"
+        echo "4. 尝试重启服务器"
+        echo "5. 使用 acme.sh 的其他验证方式，如 DNS 验证"
+        return 1
+    fi
 }
 
 install_gost() {
