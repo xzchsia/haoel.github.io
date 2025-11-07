@@ -115,15 +115,15 @@ install_docker() {
 
         sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
+        # 设置开机自启动
+        sudo systemctl enable docker
+
         # 检查 Docker 是否正常运行并显示状态（不使用分页器）
         sudo systemctl status docker --no-pager || true
         
         # 确保 Docker 服务启动
         sudo systemctl start docker
         
-        # 设置开机自启动
-        sudo systemctl enable docker
-
         echo -e "${COLOR_SUCC}Docker CE 安装成功并且可以正常运行${COLOR_NONE}"
 
     else
