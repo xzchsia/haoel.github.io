@@ -228,14 +228,41 @@ create_cert() {
 }
 
 install_gost() {
-    if ! [ -x "$(command -v docker)" ]; then
-        echo -e "${COLOR_ERROR}未发现Docker，请求安装 Docker ! ${COLOR_NONE}"
-        return
+    # 检查 Docker 是否安装
+    if ! command -v docker &> /dev/null; then
+        echo -e "${COLOR_ERROR}未发现 Docker，是否要安装 Docker？[y/N] ${COLOR_NONE}"
+        read -r install_docker_answer
+        if [[ "$install_docker_answer" =~ ^[Yy]$ ]]; then
+            install_docker
+        else
+            return 1
+        fi
     fi
 
-    if check_container gost ; then
-        echo -e "${COLOR_ERROR}Gost 容器已经在运行了，你可以手动停止容器，并删除容器，然后再执行本命令来重新安装 Gost。 ${COLOR_NONE}"
-        return
+    # 检查 Docker 服务是否运行
+    if ! sudo systemctl is-active docker &> /dev/null; then
+        echo -e "${COLOR_ERROR}Docker 服务未运行，正在尝试启动...${COLOR_NONE}"
+        sudo systemctl start docker
+        sleep 2  # 等待服务启动
+    fi
+
+    # 再次检查 Docker 服务状态
+    if ! sudo systemctl is-active docker &> /dev/null; then
+        echo -e "${COLOR_ERROR}无法启动 Docker 服务，请检查系统日志${COLOR_NONE}"
+        return 1
+    fi
+
+    # 检查已存在的 Gost 容器
+    if check_container gost; then
+        echo -e "${COLOR_ERROR}发现正在运行的 Gost 容器。${COLOR_NONE}"
+        read -r -p "是否要停止并删除现有容器重新安装？[y/N] " remove_container
+        if [[ "$remove_container" =~ ^[Yy]$ ]]; then
+            echo "正在停止并删除现有 Gost 容器..."
+            sudo docker stop gost
+            sudo docker rm gost
+        else
+            return 1
+        fi
     fi
 
     echo "准备启动 Gost 代理程序,为了安全,需要使用用户名与密码进行认证."
@@ -259,7 +286,7 @@ install_gost() {
     ## gogost/gost是V3版本的容器
     sudo docker run -d --name gost \
         -v ${CERT_DIR}:${CERT_DIR}:ro \
-        --net=host ginuerzh/gost \
+        --net=host gogost/gost \
         -L "http2://${USER}:${PASS}@${BIND_IP}:${PORT}?cert=${CERT}&key=${KEY}&probe_resist=code:400&knock=www.google.com"
 }
 
