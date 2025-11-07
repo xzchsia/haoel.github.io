@@ -120,11 +120,6 @@ install_docker() {
 
         # 启动 Docker 服务
         sudo systemctl start docker
-        sudo systemctl enable docker
-
-        # 将当前用户添加到 docker 组
-        sudo usermod -aG docker $USER
-
         # 等待 Docker 服务完全启动
         sleep 3
 
@@ -394,105 +389,105 @@ install_brook(){
 
 # uninstall
 
-uninstall_services() {
-    echo "开始卸载服务..."
+# uninstall_services() {
+#     echo "开始卸载服务..."
 
-    # 获取 Gost 容器的域名
-    if command -v docker &> /dev/null && sudo docker ps -a --format '{{.Names}}' | grep -q gost; then
-        gost_domain=$(sudo docker inspect gost | grep -oP '(?<=cert=\/etc\/letsencrypt\/live\/)[^/]+')
-        echo -e "${COLOR_SUCC}检测到 Gost 使用的域名: $gost_domain${COLOR_NONE}"
-    else
-        echo -e "${COLOR_ERROR}未检测到 Gost 容器${COLOR_NONE}"
-        gost_domain=""
-    fi
+#     # 获取 Gost 容器的域名
+#     if command -v docker &> /dev/null && sudo docker ps -a --format '{{.Names}}' | grep -q gost; then
+#         gost_domain=$(sudo docker inspect gost | grep -oP '(?<=cert=\/etc\/letsencrypt\/live\/)[^/]+')
+#         echo -e "${COLOR_SUCC}检测到 Gost 使用的域名: $gost_domain${COLOR_NONE}"
+#     else
+#         echo -e "${COLOR_ERROR}未检测到 Gost 容器${COLOR_NONE}"
+#         gost_domain=""
+#     fi
 
-    # 停止并移除容器
-    if command -v docker &> /dev/null; then
-        for container in gost ss vpn; do
-            if sudo docker ps -a --format '{{.Names}}' | grep -q $container; then
-                sudo docker stop $container
-                sudo docker rm $container
-                echo -e "${COLOR_SUCC}成功停止并移除容器 $container${COLOR_NONE}"
-            else
-                echo -e "${COLOR_ERROR}容器 $container 未找到${COLOR_NONE}"
-            fi
-        done
-    fi
+#     # 停止并移除容器
+#     if command -v docker &> /dev/null; then
+#         for container in gost ss vpn; do
+#             if sudo docker ps -a --format '{{.Names}}' | grep -q $container; then
+#                 sudo docker stop $container
+#                 sudo docker rm $container
+#                 echo -e "${COLOR_SUCC}成功停止并移除容器 $container${COLOR_NONE}"
+#             else
+#                 echo -e "${COLOR_ERROR}容器 $container 未找到${COLOR_NONE}"
+#             fi
+#         done
+#     fi
 
-    # 卸载 Docker
-    if command -v docker &> /dev/null; then
-        echo "正在卸载 Docker..."
-        # 停止服务
-        sudo systemctl stop docker.socket docker.service
+#     # 卸载 Docker
+#     if command -v docker &> /dev/null; then
+#         echo "正在卸载 Docker..."
+#         # 停止服务
+#         sudo systemctl stop docker.socket docker.service
         
-        # 卸载所有 Docker 包
-        sudo apt-get purge -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-        sudo apt-get autoremove -y --purge
+#         # 卸载所有 Docker 包
+#         sudo apt-get purge -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+#         sudo apt-get autoremove -y --purge
         
-        # 删除 Docker 配置和数据
-        sudo rm -rf /var/lib/docker
-        sudo rm -rf /etc/docker
-        sudo rm -rf /etc/apt/keyrings/docker.asc
-        sudo rm -rf /etc/apt/sources.list.d/docker.list
+#         # 删除 Docker 配置和数据
+#         sudo rm -rf /var/lib/docker
+#         sudo rm -rf /etc/docker
+#         sudo rm -rf /etc/apt/keyrings/docker.asc
+#         sudo rm -rf /etc/apt/sources.list.d/docker.list
         
-        echo -e "${COLOR_SUCC}Docker 已完全卸载${COLOR_NONE}"
-    else
-        echo -e "${COLOR_ERROR}Docker 未安装${COLOR_NONE}"
-    fi
+#         echo -e "${COLOR_SUCC}Docker 已完全卸载${COLOR_NONE}"
+#     else
+#         echo -e "${COLOR_ERROR}Docker 未安装${COLOR_NONE}"
+#     fi
 
-    # 卸载 Certbot 并删除证书文件
-    if command -v certbot &> /dev/null; then
-        if [ -n "$gost_domain" ]; then
-            domain=$gost_domain
-        else
-            echo "请输入要删除证书的域名:"
-            read -r domain
-        fi
+#     # 卸载 Certbot 并删除证书文件
+#     if command -v certbot &> /dev/null; then
+#         if [ -n "$gost_domain" ]; then
+#             domain=$gost_domain
+#         else
+#             echo "请输入要删除证书的域名:"
+#             read -r domain
+#         fi
         
-        # 卸载 Certbot
-        sudo apt-get purge -y certbot
-        sudo apt-get autoremove -y --purge
+#         # 卸载 Certbot
+#         sudo apt-get purge -y certbot
+#         sudo apt-get autoremove -y --purge
 
-        # 删除证书文件（如果存在）
-        if [ -n "$domain" ]; then
-            sudo rm -rf "/etc/letsencrypt/live/$domain"
-            sudo rm -rf "/etc/letsencrypt/archive/$domain"
-            sudo rm -rf "/etc/letsencrypt/renewal/$domain.conf"
-        fi
+#         # 删除证书文件（如果存在）
+#         if [ -n "$domain" ]; then
+#             sudo rm -rf "/etc/letsencrypt/live/$domain"
+#             sudo rm -rf "/etc/letsencrypt/archive/$domain"
+#             sudo rm -rf "/etc/letsencrypt/renewal/$domain.conf"
+#         fi
         
-        echo -e "${COLOR_SUCC}Certbot 和 SSL 证书已删除${COLOR_NONE}"
-    else
-        echo -e "${COLOR_ERROR}Certbot 未安装${COLOR_NONE}"
-    fi
+#         echo -e "${COLOR_SUCC}Certbot 和 SSL 证书已删除${COLOR_NONE}"
+#     else
+#         echo -e "${COLOR_ERROR}Certbot 未安装${COLOR_NONE}"
+#     fi
 
-    # 卸载 BBR
-    # if lsmod | grep -q bbr; then
-    #     sudo rmmod tcp_bbr
-    #     sudo sed -i '/tcp_bbr/d' /etc/modules-load.d/modules.conf
-    #     sudo sed -i '/net.core.default_qdisc=fq/d' /etc/sysctl.conf
-    #     sudo sed -i '/net.ipv4.tcp_congestion_control=bbr/d' /etc/sysctl.conf
-    #     sudo sysctl -p
-    #     echo -e "${COLOR_SUCC}BBR 已卸载${COLOR_NONE}"
-    # else
-    #     echo -e "${COLOR_ERROR}BBR 未安装${COLOR_NONE}"
-    # fi
+#     # 卸载 BBR
+#     # if lsmod | grep -q bbr; then
+#     #     sudo rmmod tcp_bbr
+#     #     sudo sed -i '/tcp_bbr/d' /etc/modules-load.d/modules.conf
+#     #     sudo sed -i '/net.core.default_qdisc=fq/d' /etc/sysctl.conf
+#     #     sudo sed -i '/net.ipv4.tcp_congestion_control=bbr/d' /etc/sysctl.conf
+#     #     sudo sysctl -p
+#     #     echo -e "${COLOR_SUCC}BBR 已卸载${COLOR_NONE}"
+#     # else
+#     #     echo -e "${COLOR_ERROR}BBR 未安装${COLOR_NONE}"
+#     # fi
 
-    # 卸载 Brook
-    if [ -e /usr/local/brook/brook ]; then
-        sudo rm /usr/local/brook/brook
-        echo -e "${COLOR_SUCC}Brook 已卸载${COLOR_NONE}"
-    else
-        echo -e "${COLOR_ERROR}Brook 未安装${COLOR_NONE}"
-    fi
+#     # 卸载 Brook
+#     if [ -e /usr/local/brook/brook ]; then
+#         sudo rm /usr/local/brook/brook
+#         echo -e "${COLOR_SUCC}Brook 已卸载${COLOR_NONE}"
+#     else
+#         echo -e "${COLOR_ERROR}Brook 未安装${COLOR_NONE}"
+#     fi
 
-    # 删除 Cron Jobs
-    crontab -l 2>/dev/null | grep -v "/usr/bin/certbot renew --force-renewal" | crontab -
-    crontab -l 2>/dev/null | grep -v "/usr/bin/docker restart gost" | crontab -
-    echo -e "${COLOR_SUCC}Cron Jobs 已删除${COLOR_NONE}"
+#     # 删除 Cron Jobs
+#     crontab -l 2>/dev/null | grep -v "/usr/bin/certbot renew --force-renewal" | crontab -
+#     crontab -l 2>/dev/null | grep -v "/usr/bin/docker restart gost" | crontab -
+#     echo -e "${COLOR_SUCC}Cron Jobs 已删除${COLOR_NONE}"
 
-    echo -e "${COLOR_SUCC}所有操作已完成，即将重启系统...${COLORNONE}" 
-    sudo reboot
-}
+#     echo -e "${COLOR_SUCC}所有操作已完成，即将重启系统...${COLORNONE}" 
+#     sudo reboot
+# }
 
 # end uninstall
 
@@ -520,7 +515,6 @@ init(){
                     "安装 VPN/L2TP 服务" \
                     "安装 Brook 代理服务" \
                     "创建证书更新 CronJob" \
-                    "卸载所有服务" \
                     "退出" ; do
 
             if ! [[ $REPLY =~ $re ]] ; then
@@ -551,9 +545,6 @@ init(){
                 create_cron_job
                 break
             elif (( REPLY == 9 )); then
-                uninstall_services
-                break
-            elif (( REPLY == 10 )); then
                 exit
             else
                 echo -e "${COLOR_ERROR}Invalid option. Try another one.${COLOR_NONE}"
