@@ -97,11 +97,13 @@ install_docker() {
         echo "开始安装 Docker CE"
 
         # 卸载旧版本的 Docker（如果有的话）
-        for pkg in docker.io docker-doc docker-compose docker-compose-v2 podman-docker containerd runc; do sudo apt-get remove $pkg; done
+        for pkg in docker.io docker-doc docker-compose docker-compose-v2 podman-docker containerd runc; do 
+            sudo apt-get remove -y $pkg &> /dev/null || true
+        done
 
         # Add Docker's official GPG key:
         sudo apt-get update -qq
-        sudo apt-get install -y ca-certificates curl
+        sudo apt-get install -y ca-certificates curl gnupg
         sudo install -m 0755 -d /etc/apt/keyrings
         sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
         sudo chmod a+r /etc/apt/keyrings/docker.asc
@@ -109,20 +111,29 @@ install_docker() {
         # Add the repository to Apt sources:
         echo \
         "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
-        $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}") stable" | \
+        $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
         sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
         sudo apt-get update -qq
 
+        # 安装 Docker
         sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
-        # 设置开机自启动
+        # 启动 Docker 服务
+        sudo systemctl start docker
         sudo systemctl enable docker
 
-        # 检查 Docker 是否正常运行并显示状态（不使用分页器）
-        sudo systemctl status docker --no-pager || true
-        
-        # 确保 Docker 服务启动
-        sudo systemctl start docker
+        # 将当前用户添加到 docker 组
+        sudo usermod -aG docker $USER
+
+        # 等待 Docker 服务完全启动
+        sleep 3
+
+        sudo systemctl status docker --no-pager
+
+        # 显示版本信息和服务状态
+        echo "Docker 版本信息："
+        sudo docker version
+        echo -e "${COLOR_SUCC}Docker CE 安装成功！请重新登录以使用户组更改生效。${COLOR_NONE}"
         
         echo -e "${COLOR_SUCC}Docker CE 安装成功并且可以正常运行${COLOR_NONE}"
 
