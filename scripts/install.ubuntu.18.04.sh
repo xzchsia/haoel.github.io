@@ -65,6 +65,9 @@ install_docker() {
     if ! command -v docker &> /dev/null; then
         echo "开始安装 Docker CE"
 
+        # 卸载旧版本的 Docker（如果有的话）
+        for pkg in docker.io docker-doc docker-compose docker-compose-v2 podman-docker containerd runc; do sudo apt-get remove $pkg; done
+
         # Add Docker's official GPG key:
         sudo apt-get update -qq
         sudo apt-get install -y ca-certificates curl
@@ -85,7 +88,10 @@ install_docker() {
         sudo systemctl status docker
         sudo systemctl start docker
 
-         echo -e "${COLOR_SUCC}Docker CE 安装成功并且可以正常运行${COLOR_NONE}"
+        # 添加了开机自启动设置
+        sudo systemctl enable --now docker
+
+        echo -e "${COLOR_SUCC}Docker CE 安装成功并且可以正常运行${COLOR_NONE}"
 
     else
         echo -e "${COLOR_SUCC}Docker CE 已经安装成功了${COLOR_NONE}"
@@ -321,7 +327,7 @@ uninstall_services() {
     echo "开始卸载服务..."
 
     # 获取 Gost 容器的域名
-    if sudo docker ps -a --format '{{.Names}}' | grep -q gost; then
+    if command -v docker &> /dev/null && sudo docker ps -a --format '{{.Names}}' | grep -q gost; then
         gost_domain=$(sudo docker inspect gost | grep -oP '(?<=cert=\/etc\/letsencrypt\/live\/)[^/]+')
         echo -e "${COLOR_SUCC}检测到 Gost 使用的域名: $gost_domain${COLOR_NONE}"
     else
@@ -330,35 +336,41 @@ uninstall_services() {
     fi
 
     # 停止并移除容器
-    for container in gost ss vpn; do
-        if sudo docker ps -a --format '{{.Names}}' | grep -q $container; then
-            sudo docker stop $container
-            sudo docker rm $container
-            echo -e "${COLOR_SUCC}成功停止并移除容器 $container${COLOR_NONE}"
-        else
-            echo -e "${COLOR_ERROR}容器 $container 未找到${COLOR_NONE}"
-        fi
-    done
-
+    if command -v docker &> /dev/null; then
+        for container in gost ss vpn; do
+            if sudo docker ps -a --format '{{.Names}}' | grep -q $container; then
+                sudo docker stop $container
+                sudo docker rm $container
+                echo -e "${COLOR_SUCC}成功停止并移除容器 $container${COLOR_NONE}"
+            else
+                echo -e "${COLOR_ERROR}容器 $container 未找到${COLOR_NONE}"
+            fi
+        done
+    fi
 
     # 卸载 Docker
-    if [ -x "$(command -v docker)" ]; then
-        sudo systemctl stop docker
-        sudo apt-get purge -y docker-ce
-        sudo apt-get autoremove -y --purge docker-ce
+    if command -v docker &> /dev/null; then
+        echo "正在卸载 Docker..."
+        # 停止服务
+        sudo systemctl stop docker.socket docker.service
+        
+        # 卸载所有 Docker 包
+        sudo apt-get purge -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+        sudo apt-get autoremove -y --purge
+        
+        # 删除 Docker 配置和数据
         sudo rm -rf /var/lib/docker
         sudo rm -rf /etc/docker
-        sudo rm /etc/apparmor.d/docker
-        sudo groupdel docker
-        sudo rm -rf /var/run/docker.sock
-        sudo rm -rf /usr/bin/docker
-        echo -e "${COLOR_SUCC}Docker 已卸载${COLOR_NONE}"
+        sudo rm -rf /etc/apt/keyrings/docker.asc
+        sudo rm -rf /etc/apt/sources.list.d/docker.list
+        
+        echo -e "${COLOR_SUCC}Docker 已完全卸载${COLOR_NONE}"
     else
         echo -e "${COLOR_ERROR}Docker 未安装${COLOR_NONE}"
     fi
 
     # 卸载 Certbot 并删除证书文件
-    if [ -x "$(command -v certbot)" ]; then
+    if command -v certbot &> /dev/null; then
         if [ -n "$gost_domain" ]; then
             domain=$gost_domain
         else
@@ -366,15 +378,17 @@ uninstall_services() {
             read -r domain
         fi
         
+        # 卸载 Certbot
         sudo apt-get purge -y certbot
-        sudo apt-get autoremove -y --purge certbot
+        sudo apt-get autoremove -y --purge
 
-        sudo rm -rf /etc/letsencrypt/live/$domain
-        sudo rm -rf /etc/letsencrypt/archive/$domain
-        sudo rm -rf /etc/letsencrypt/renewal/$domain.conf
+        # 删除证书文件（如果存在）
+        if [ -n "$domain" ]; then
+            sudo rm -rf "/etc/letsencrypt/live/$domain"
+            sudo rm -rf "/etc/letsencrypt/archive/$domain"
+            sudo rm -rf "/etc/letsencrypt/renewal/$domain.conf"
+        fi
         
-        crontab -l 2>/dev/null | grep -v "/usr/bin/certbot renew --force-renewal" | crontab -
-
         echo -e "${COLOR_SUCC}Certbot 和 SSL 证书已删除${COLOR_NONE}"
     else
         echo -e "${COLOR_ERROR}Certbot 未安装${COLOR_NONE}"
