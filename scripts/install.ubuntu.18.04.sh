@@ -40,14 +40,45 @@ check_bbr(){
 
 start_bbr(){
     echo "启动 TCP BBR 拥塞控制算法"
-    sudo modprobe tcp_bbr
-    echo "tcp_bbr" | sudo tee --append /etc/modules-load.d/modules.conf
-    echo "net.core.default_qdisc=fq" | sudo tee --append /etc/sysctl.conf
-    echo "net.ipv4.tcp_congestion_control=bbr" | sudo tee --append /etc/sysctl.conf
-    echo "net.ipv4.tcp_available_congestion_control=bbr" | sudo tee --append /etc/sysctl.conf
-    sudo sysctl -p
-    sysctl net.ipv4.tcp_available_congestion_control
-    sysctl net.ipv4.tcp_congestion_control
+    
+    # 加载 BBR 模块
+    if ! sudo modprobe tcp_bbr; then
+        echo -e "${COLOR_ERROR}加载 tcp_bbr 模块失败${COLOR_NONE}"
+        return 1
+    fi
+    
+    # 设置开机自动加载
+    if [ ! -d "/etc/modules-load.d" ]; then
+        sudo mkdir -p /etc/modules-load.d
+    fi
+    echo "tcp_bbr" | sudo tee /etc/modules-load.d/bbr.conf > /dev/null
+
+    # 创建新的 sysctl 配置文件，而不是直接修改 sysctl.conf
+    if [ ! -d "/etc/sysctl.d" ]; then
+        sudo mkdir -p /etc/sysctl.d
+    fi
+    
+    # 将 BBR 配置写入独立的配置文件
+    sudo tee /etc/sysctl.d/60-bbr.conf > /dev/null << EOF
+net.core.default_qdisc=fq
+net.ipv4.tcp_congestion_control=bbr
+EOF
+
+    # 应用 sysctl 配置
+    if ! sudo sysctl --system; then
+        echo -e "${COLOR_ERROR}应用 sysctl 配置失败${COLOR_NONE}"
+        return 1
+    fi
+
+    # 验证配置是否生效
+    local bbr_enabled=$(sudo sysctl -n net.ipv4.tcp_congestion_control)
+    if [ "$bbr_enabled" = "bbr" ]; then
+        echo -e "${COLOR_SUCC}BBR 已成功启用${COLOR_NONE}"
+        return 0
+    else
+        echo -e "${COLOR_ERROR}BBR 启用失败，当前拥塞控制算法: $bbr_enabled${COLOR_NONE}"
+        return 1
+    fi
 }
 
 install_bbr() {
@@ -84,12 +115,14 @@ install_docker() {
 
         sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
-        # 检查 Docker 是否正常运行
-        sudo systemctl status docker
+        # 检查 Docker 是否正常运行并显示状态（不使用分页器）
+        sudo systemctl status docker --no-pager || true
+        
+        # 确保 Docker 服务启动
         sudo systemctl start docker
-
-        # 添加了开机自启动设置
-        sudo systemctl enable --now docker
+        
+        # 设置开机自启动
+        sudo systemctl enable docker
 
         echo -e "${COLOR_SUCC}Docker CE 安装成功并且可以正常运行${COLOR_NONE}"
 
