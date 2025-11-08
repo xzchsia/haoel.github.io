@@ -128,7 +128,6 @@ install_docker() {
         # 显示版本信息和服务状态
         echo "Docker 版本信息："
         sudo docker version
-        echo -e "${COLOR_SUCC}Docker CE 安装成功！请重新登录以使用户组更改生效。${COLOR_NONE}"
         
         echo -e "${COLOR_SUCC}Docker CE 安装成功并且可以正常运行${COLOR_NONE}"
 
