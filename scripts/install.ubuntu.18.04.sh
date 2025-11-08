@@ -293,20 +293,20 @@ install_gost() {
     CERT=${CERT_DIR}/live/${DOMAIN}/fullchain.pem
     KEY=${CERT_DIR}/live/${DOMAIN}/privkey.pem
 
-    # 验证证书文件是否存在
-    if [ ! -f "$CERT" ] || [ ! -f "$KEY" ]; then
-        echo -e "${COLOR_ERROR}证书文件不存在！请先运行'创建 SSL 证书'选项来生成证书。${COLOR_NONE}"
-        echo "需要的文件："
-        echo "- $CERT"
-        echo "- $KEY"
-        return 1
-    fi
+    # # 验证证书文件是否存在
+    # if [ ! -f "$CERT" ] || [ ! -f "$KEY" ]; then
+    #     echo -e "${COLOR_ERROR}证书文件不存在！请先运行'创建 SSL 证书'选项来生成证书。${COLOR_NONE}"
+    #     echo "需要的文件："
+    #     echo "- $CERT"
+    #     echo "- $KEY"
+    #     return 1
+    # fi
 
-    # 检查证书权限
-    if [ ! -r "$CERT" ] || [ ! -r "$KEY" ]; then
-        echo -e "${COLOR_ERROR}证书文件权限不正确，正在尝试修复...${COLOR_NONE}"
-        sudo chmod 644 "$CERT" "$KEY"
-    fi
+    # # 检查证书权限
+    # if [ ! -r "$CERT" ] || [ ! -r "$KEY" ]; then
+    #     echo -e "${COLOR_ERROR}证书文件权限不正确，正在尝试修复...${COLOR_NONE}"
+    #     sudo chmod 644 "$CERT" "$KEY"
+    # fi
 
     echo "正在启动 Gost 容器..."
     ## 此处的--name gost是自定义的容器实例名称
