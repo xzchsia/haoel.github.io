@@ -142,19 +142,6 @@ install_docker() {
     fi
 }
 
-# ## 修复替换提示 解决 apt-key 弃用警告，暂未测试
-# install_docker() {
-#     if ! [ -x "$(command -v docker)" ]; then
-#         echo "开始安装 Docker CE"
-#         curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
-#         echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-#         sudo apt-get update -qq
-#         sudo apt-get install -y docker-ce
-#     else
-#         echo "Docker CE 已经安装成功了"
-#     fi
-# }
-
 
 check_container(){
     has_container=$(sudo docker ps --format "{{.Names}}" | grep "$1")
