@@ -273,7 +273,11 @@ install_gost() {
         echo -e "${COLOR_ERROR}端口 $PORT 已被占用，请选择其他端口或释放该端口${COLOR_NONE}"
         return 1
     fi
-
+    # 添加防火墙规则允许端口通过
+    sudo iptables -I INPUT -p tcp --dport "$PORT" -j ACCEPT
+    sudo iptables -I INPUT -p udp --dport "$PORT" -j ACCEPT
+    sudo iptables-save > /etc/iptables/rules.v4
+    
     BIND_IP=0.0.0.0
     CERT_DIR=/etc/letsencrypt
     CERT=${CERT_DIR}/live/${DOMAIN}/fullchain.pem
@@ -300,7 +304,8 @@ install_gost() {
     ## gogost/gost是V3版本的容器
     sudo docker run -d --name gost \
         -v ${CERT_DIR}:${CERT_DIR}:ro \
-        --net=host ginuerzh/gost \
+        --network host \
+        gogost/gost \
         -L "http2://${USER}:${PASS}@${BIND_IP}:${PORT}?cert=${CERT}&key=${KEY}&probe_resist=code:400&knock=www.google.com"
 }
 
