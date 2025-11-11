@@ -276,7 +276,7 @@ install_gost() {
     # 添加防火墙规则允许端口通过
     sudo iptables -I INPUT -p tcp --dport "$PORT" -j ACCEPT
     sudo iptables -I INPUT -p udp --dport "$PORT" -j ACCEPT
-    sudo iptables-save > /etc/iptables/rules.v4
+    sudo iptables-save | sudo tee /etc/iptables/rules.v4 > /dev/null
     
     BIND_IP=0.0.0.0
     CERT_DIR=/etc/letsencrypt
