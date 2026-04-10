@@ -120,6 +120,7 @@ install_docker() {
 
         # 启动 Docker 服务
         sudo systemctl start docker
+        sudo systemctl enable docker
         # 等待 Docker 服务完全启动
         sleep 3
 
@@ -302,7 +303,7 @@ install_gost() {
     ## 此处的--name gost是自定义的容器实例名称
     ## ginuerzh/gost是V2版本的容器
     ## gogost/gost是V3版本的容器
-    sudo docker run -d --name gost \
+    sudo docker run -d --restart unless-stopped --name gost \
         -v ${CERT_DIR}:${CERT_DIR}:ro \
         --network host \
         gogost/gost \
