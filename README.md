@@ -1426,6 +1426,14 @@ sudo docker run -d --name gost-warp \
   sudo systemctl restart warp-svc.service
   ```
 
+
+- **如果主机重启后，gost没有起来**。 如果你已经创建了一个 gost 容器，vps主机重启后，gost服务没有自动运行起来，可以执行如下代码，让服务以后可以随着vps主机重启后自动重启：：
+
+  ```shell
+  sudo docker update --restart unless-stopped gost
+  ```
+
+
 #### 10.4.3 Docker 代理
 
 用 Docker 可以更方便地部署起一个 Cloudflare WARP Proxy，只需要一行命令:
